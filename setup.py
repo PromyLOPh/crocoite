@@ -12,6 +12,7 @@ setup(
     install_requires=[
         'pychrome',
         'warcio',
+        'html5lib>=0.999999999',
     ],
     entry_points={
     'console_scripts': [

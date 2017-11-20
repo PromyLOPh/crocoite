@@ -31,6 +31,11 @@ from io import BytesIO
 import argparse
 import tempfile
 
+from html5lib.treewalkers.base import TreeWalker
+from html5lib.filters.base import Filter
+from html5lib.serializer import HTMLSerializer
+from html5lib import constants
+
 logger = logging.getLogger(__name__)
 
 # 10 MB, encoded! (i.e. actual data can be larger due to compression)
@@ -75,6 +80,58 @@ class WARCLogHandler (BufferingHandler):
             self.buffer = []
         finally:
             self.release ()
+
+class ChromeTreeWalker (TreeWalker):
+    """
+    Recursive html5lib TreeWalker for Google Chrome method DOM.getDocument
+    """
+
+    def recurse (self, node):
+        name = node['nodeName']
+        if name.startswith ('#'):
+            if name == '#text':
+                yield from self.text (node['nodeValue'])
+            elif name == '#comment':
+                yield self.comment (node['nodeValue'])
+            elif name == '#document':
+                for child in node.get ('children', []):
+                    yield from self.recurse (child)
+        else:
+            default_namespace = constants.namespaces["html"]
+            attributes = node.get ('attributes', [])
+            convertedAttr = {}
+            for i in range (0, len (attributes), 2):
+                convertedAttr[(default_namespace, attributes[i])] = attributes[i+1]
+            yield self.startTag (default_namespace, name, convertedAttr)
+            for child in node.get ('children', []):
+                yield from self.recurse (child)
+            yield self.endTag ('', name)
+
+    def __iter__ (self):
+        from pprint import pprint
+        assert self.tree['nodeName'] == '#document'
+        return self.recurse (self.tree)
+
+class StripTagFilter (Filter):
+    """
+    Remove arbitrary tags
+    """
+
+    def __init__ (self, source, tags):
+        Filter.__init__ (self, source)
+        self.tags = set (map (str.lower, tags))
+
+    def __iter__(self):
+        delete = 0
+        for token in Filter.__iter__(self):
+            tokenType = token['type']
+            if tokenType == 'StartTag':
+                if delete > 0 or token['name'].lower () in self.tags:
+                    delete += 1
+            if delete == 0:
+                yield token
+            if tokenType == 'EndTag' and delete > 0:
+                delete -= 1
 
 def main ():
     def getStatusText (response):
@@ -219,7 +276,7 @@ def main ():
                 writer.write_record(record)
             except pychrome.exceptions.CallMethodException:
                 logger.error ('no data for {} {} {}'.format (resp['url'],
-                        resp['status'], kwargs.get ('requestId')))
+                        resp['status'], reqId))
         else:
             logger.warn ('body for {} is too large, {} bytes'.format (resp['url'], kwargs['encodedDataLength']))
 
@@ -228,6 +285,36 @@ def main ():
         logger.debug ('failed {} {}'.format (reqId, kwargs['errorText'], kwargs.get ('blockedReason')))
         if reqId in requests:
             del requests[reqId]
+
+    def getFormattedViewportMetrics (tab):
+        layoutMetrics = tab.Page.getLayoutMetrics ()
+        # XXX: I’m not entirely sure which one we should use here
+        return '{}x{}'.format (layoutMetrics['layoutViewport']['clientWidth'],
+                    layoutMetrics['layoutViewport']['clientHeight'])
+
+    def writeDOMSnapshot (tab, writer):
+        """
+        Get a DOM snapshot of tab and write it to WARC.
+
+        We could use DOMSnapshot.getSnapshot here, but the API is not stable
+        yet. Also computed styles are not really necessary here.
+
+        XXX: Currently writes a response, when it should use “resource”. pywb
+        can’t handle that though.
+        """
+        viewport = getFormattedViewportMetrics (tab)
+        dom = tab.DOM.getDocument (depth=-1)
+        # remove script, to make the page static and noscript, because at the
+        # time we took the snapshot scripts were enabled
+        stream = StripTagFilter (ChromeTreeWalker (dom['root']), ['script', 'noscript'])
+        serializer = HTMLSerializer ()
+        httpHeaders = StatusAndHeaders('200 OK', {}, protocol='HTTP/1.1')
+        record = writer.create_warc_record (dom['root']['documentURL'], 'response',
+                payload=BytesIO (serializer.render (stream, 'utf8')),
+                http_headers=httpHeaders,
+                warc_headers_dict={'X-DOM-Snapshot': str (True),
+                        'X-Chrome-Viewport': viewport})
+        writer.write_record (record)
 
     logging.basicConfig (level=logging.DEBUG)
 
@@ -268,15 +355,11 @@ def main ():
     fd = open (args.output, 'wb')
     writer = WARCWriter (fd, gzip=True)
     version = tab.Browser.getVersion ()
-    # assuming these don’t change
-    layoutMetrics = tab.Page.getLayoutMetrics ()
     payload = {
             'software': __package__,
             'browser': version['product'],
             'useragent': version['userAgent'],
-            # XXX: I’m not entirely sure which one we should use here
-            'viewport': '{}x{}'.format (layoutMetrics['layoutViewport']['clientWidth'],
-                    layoutMetrics['layoutViewport']['clientHeight'])
+            'viewport': getFormattedViewportMetrics (tab),
             }
     warcinfo = writer.create_warcinfo_record (filename=None, info=payload)
     writer.write_record (warcinfo)
@@ -307,6 +390,18 @@ def main ():
         tab.wait (args.waitstep)
         if len (requests) == 0:
             break
+
+    # disable events
+    tab.Page.stopLoading ()
+    tab.Network.disable ()
+    tab.Page.disable ()
+    tab.Network.requestWillBeSent = None
+    tab.Network.responseReceived = None
+    tab.Network.loadingFinished = None
+    tab.Network.loadingFailed = None
+    tab.Page.loadEventFired = None
+
+    writeDOMSnapshot (tab, writer)
 
     tab.stop()
     if not args.keepTab:
