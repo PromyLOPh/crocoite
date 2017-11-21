@@ -245,7 +245,6 @@ def main ():
                     rawBody = body['body']
                     base64Encoded = body['base64Encoded']
                     if base64Encoded:
-                        logger.debug ('body is base64 encoded')
                         rawBody = b64decode (rawBody)
                     else:
                         rawBody = rawBody.encode ('utf8')
@@ -274,6 +273,7 @@ def main ():
                         'X-Chrome-Protocol': resp.get ('protocol', ''),
                         'X-Chrome-FromDiskCache': str (resp.get ('fromDiskCache')),
                         'X-Chrome-ConnectionReused': str (resp.get ('connectionReused')),
+                        'X-Chrome-Base64Body': str (base64Encoded),
                         }
                 record = writer.create_warc_record(resp['url'], 'response',
                         warc_headers_dict=warcHeaders, payload=BytesIO (rawBody),
