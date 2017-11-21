@@ -29,7 +29,7 @@ from logging.handlers import BufferingHandler
 from http.server import BaseHTTPRequestHandler
 from io import BytesIO
 import argparse
-import tempfile
+import tempfile, random
 
 from html5lib.treewalkers.base import TreeWalker
 from html5lib.filters.base import Filter
@@ -52,6 +52,11 @@ def packageUrl (path):
     Create URL for package data stored into WARC
     """
     return 'urn:' + __package__ + ':' + path
+
+def randomString (length=None, chars='abcdefghijklmnopqrstuvwxyz'):
+    if length is None:
+        length = random.randint (16, 32)
+    return ''.join (map (lambda x: random.choice (chars), range (length)))
 
 class WARCLogHandler (BufferingHandler):
     """
@@ -321,7 +326,7 @@ def main ():
     parser = argparse.ArgumentParser(description='Save website to WARC using Google Chrome.')
     parser.add_argument('--browser', default='http://127.0.0.1:9222', help='DevTools URL')
     parser.add_argument('--timeout', default=10, type=int, help='Maximum time for archival')
-    parser.add_argument('--waitstep', default=2, type=int, help='')
+    parser.add_argument('--idle-timeout', default=2, type=int, help='Maximum idle seconds (i.e. no requests)', dest='idleTimeout')
     parser.add_argument('--onload', default=packageData ('scroll.js'), help='')
     parser.add_argument('--log-buffer', default=1000, type=int, dest='logBuffer')
     parser.add_argument('--keep-tab', action='store_true', default=False, dest='keepTab', help='Keep tab open')
@@ -330,8 +335,12 @@ def main ():
 
     args = parser.parse_args ()
 
+    stopVarname = '__' + __package__ + '_stop__'
+    # avoid sites messing with our scripts by using a random stop variable name
+    newStopVarname = randomString ()
     with open (args.onload, 'r') as fd:
-        onload = fd.read ()
+        onload = 'var {} = false;\n'.format (newStopVarname) + fd.read ().replace (stopVarname, newStopVarname)
+    stopVarname = newStopVarname
 
     # temporary store for requests
     requests = {}
@@ -384,14 +393,22 @@ def main ():
 
     tab.Page.navigate(url=args.url)
 
-    # smaller waitstep might miss some requests issued very late, larger
-    # waitstep may waste time
-    for i in range (0, args.timeout, args.waitstep):
-        tab.wait (args.waitstep)
+    idleTimeout = 0
+    for i in range (0, args.timeout):
+        tab.wait (1)
         if len (requests) == 0:
-            break
+            idleTimeout += 1
+            if idleTimeout > args.idleTimeout:
+                break
+        else:
+            idleTimeout = 0
 
-    # disable events
+    # get ready for snapshot: stop loading and scripts, disable events
+    tab.Runtime.evaluate (expression='{} = true; window.scrollTo (0, 0);'.format (stopVarname), returnByValue=True)
+    # if we stopped due to timeout, wait for remaining assets
+    while len (requests) != 0:
+        tab.wait (1)
+
     tab.Page.stopLoading ()
     tab.Network.disable ()
     tab.Page.disable ()
