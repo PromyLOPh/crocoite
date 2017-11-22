@@ -321,6 +321,29 @@ def main ():
                         'X-Chrome-Viewport': viewport})
         writer.write_record (record)
 
+    def emulateScreenMetrics (tab):
+        """
+        Emulate different screen sizes, causing the site to fetch assets (img
+        srcset and css, for example) for different screen resolutions.
+        """
+        sizes = [
+                {'width': 1920, 'height': 1080, 'deviceScaleFactor': 1.5, 'mobile': False},
+                {'width': 1920, 'height': 1080, 'deviceScaleFactor': 2, 'mobile': False},
+                # very dense display
+                {'width': 1920, 'height': 1080, 'deviceScaleFactor': 4, 'mobile': False},
+                # just a few samples:
+                # 1st gen iPhone (portrait mode)
+                {'width': 320, 'height': 480, 'deviceScaleFactor': 1.8, 'mobile': True},
+                # 6th gen iPhone (portrait mode)
+                {'width': 750, 'height': 1334, 'deviceScaleFactor': 326/90, 'mobile': True},
+                ]
+        for s in sizes:
+            tab.Emulation.setDeviceMetricsOverride (**s)
+            tab.wait (1)
+        # wait until assets finished loading
+        while len (requests) != 0:
+            tab.wait (1)
+
     logging.basicConfig (level=logging.DEBUG)
 
     parser = argparse.ArgumentParser(description='Save website to WARC using Google Chrome.')
@@ -414,6 +437,8 @@ def main ():
     # if we stopped due to timeout, wait for remaining assets
     while len (requests) != 0:
         tab.wait (1)
+
+    emulateScreenMetrics (tab)
 
     tab.Page.stopLoading ()
     tab.Network.disable ()

@@ -47,8 +47,5 @@ Most of these issues can be worked around by using the DOM snapshot, which is
 also saved. This causes its own set of issues though:
 
 - JavaScript-based navigation does not work.
-- Scripts modifying styles based on scrolling position are stuck at the end of
-  page state at the moment. Example: twitter.com
-- CSS-based asset loading (screen size, pixel ratio, …) still does not work.
 - Canvas contents are probably not preserved.
 
