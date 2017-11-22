@@ -47,5 +47,4 @@ Most of these issues can be worked around by using the DOM snapshot, which is
 also saved. This causes its own set of issues though:
 
 - JavaScript-based navigation does not work.
-- Canvas contents are probably not preserved.
 

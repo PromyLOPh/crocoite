@@ -344,6 +344,15 @@ def main ():
         while len (requests) != 0:
             tab.wait (1)
 
+    def loadScripts (paths, scripts=[]):
+        for p in paths:
+            if not os.path.exists (p):
+                # search for defaults scripts in package data directory
+                p = packageData (p)
+            with open (p, 'r') as fd:
+                scripts.append (fd.read ())
+        return '\n'.join (scripts)
+
     logging.basicConfig (level=logging.DEBUG)
 
     parser = argparse.ArgumentParser(description='Save website to WARC using Google Chrome.')
@@ -353,6 +362,7 @@ def main ():
     parser.add_argument('--onload', action='append', help='')
     parser.add_argument('--log-buffer', default=1000, type=int, dest='logBuffer')
     parser.add_argument('--keep-tab', action='store_true', default=False, dest='keepTab', help='Keep tab open')
+    parser.add_argument('--run-before-snapshot', default=[], action='append', dest='runBeforeSnapshot', help='Run JavaScript files before creating DOM snapshot')
     parser.add_argument('url', help='Website URL')
     parser.add_argument('output', help='WARC filename')
 
@@ -361,14 +371,7 @@ def main ():
     stopVarname = '__' + __package__ + '_stop__'
     # avoid sites messing with our scripts by using a random stop variable name
     newStopVarname = randomString ()
-    onload = ['var {} = false;\n'.format (newStopVarname)]
-    for path in args.onload:
-        if not os.path.exists (path):
-            # search for defaults scripts in package data directory
-            path = packageData (path)
-        with open (path, 'r') as fd:
-            onload.append (fd.read ().replace (stopVarname, newStopVarname))
-    onload = '\n'.join (onload)
+    onload = loadScripts (args.onload, ['var {} = false;\n'.format (stopVarname)]).replace (stopVarname, newStopVarname)
     stopVarname = newStopVarname
 
     # temporary store for requests
@@ -449,6 +452,8 @@ def main ():
     tab.Network.loadingFailed = None
     tab.Page.loadEventFired = None
 
+    script = loadScripts (args.runBeforeSnapshot)
+    tab.Runtime.evaluate (expression=script, returnByValue=True)
     writeDOMSnapshot (tab, writer)
 
     tab.stop()
