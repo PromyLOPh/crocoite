@@ -1,3 +1,5 @@
+/*	Continuously scrolls the page
+ */
 (function(){
 function scroll (event) {
 	if (__crocoite_stop__) {

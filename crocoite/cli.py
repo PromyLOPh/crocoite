@@ -327,7 +327,7 @@ def main ():
     parser.add_argument('--browser', default='http://127.0.0.1:9222', help='DevTools URL')
     parser.add_argument('--timeout', default=10, type=int, help='Maximum time for archival')
     parser.add_argument('--idle-timeout', default=2, type=int, help='Maximum idle seconds (i.e. no requests)', dest='idleTimeout')
-    parser.add_argument('--onload', default=packageData ('scroll.js'), help='')
+    parser.add_argument('--onload', action='append', help='')
     parser.add_argument('--log-buffer', default=1000, type=int, dest='logBuffer')
     parser.add_argument('--keep-tab', action='store_true', default=False, dest='keepTab', help='Keep tab open')
     parser.add_argument('url', help='Website URL')
@@ -338,8 +338,14 @@ def main ():
     stopVarname = '__' + __package__ + '_stop__'
     # avoid sites messing with our scripts by using a random stop variable name
     newStopVarname = randomString ()
-    with open (args.onload, 'r') as fd:
-        onload = 'var {} = false;\n'.format (newStopVarname) + fd.read ().replace (stopVarname, newStopVarname)
+    onload = ['var {} = false;\n'.format (newStopVarname)]
+    for path in args.onload:
+        if not os.path.exists (path):
+            # search for defaults scripts in package data directory
+            path = packageData (path)
+        with open (path, 'r') as fd:
+            onload.append (fd.read ().replace (stopVarname, newStopVarname))
+    onload = '\n'.join (onload)
     stopVarname = newStopVarname
 
     # temporary store for requests
