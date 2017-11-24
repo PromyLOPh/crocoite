@@ -353,6 +353,12 @@ def main ():
                 scripts.append (fd.read ())
         return '\n'.join (scripts)
 
+    def writeScript (path, source, writer):
+        record = writer.create_warc_record (packageUrl (path), 'metadata',
+                payload=BytesIO (source.encode ('utf8')),
+                warc_headers_dict={'Content-Type': 'application/javascript; charset=utf-8'})
+        writer.write_record (record)
+
     logging.basicConfig (level=logging.DEBUG)
 
     parser = argparse.ArgumentParser(description='Save website to WARC using Google Chrome.')
@@ -409,10 +415,7 @@ def main ():
     logger.addHandler (warcLogger)
 
     # save onload script
-    record = writer.create_warc_record (packageUrl ('onload'), 'metadata',
-            payload=BytesIO (onload.encode ('utf8')),
-            warc_headers_dict={'Content-Type': 'application/javascript; charset=utf-8'})
-    writer.write_record (record)
+    writeScript ('onload', onload, writer)
 
     # enable events
     tab.Network.enable()
@@ -453,6 +456,7 @@ def main ():
     tab.Page.loadEventFired = None
 
     script = loadScripts (args.runBeforeSnapshot)
+    writeScript ('onsnapshot', script, writer)
     tab.Runtime.evaluate (expression=script, returnByValue=True)
     writeDOMSnapshot (tab, writer)
 
