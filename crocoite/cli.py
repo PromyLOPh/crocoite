@@ -326,6 +326,7 @@ def main ():
         Emulate different screen sizes, causing the site to fetch assets (img
         srcset and css, for example) for different screen resolutions.
         """
+        cssPpi = 96
         sizes = [
                 {'width': 1920, 'height': 1080, 'deviceScaleFactor': 1.5, 'mobile': False},
                 {'width': 1920, 'height': 1080, 'deviceScaleFactor': 2, 'mobile': False},
@@ -333,9 +334,11 @@ def main ():
                 {'width': 1920, 'height': 1080, 'deviceScaleFactor': 4, 'mobile': False},
                 # just a few samples:
                 # 1st gen iPhone (portrait mode)
-                {'width': 320, 'height': 480, 'deviceScaleFactor': 1.8, 'mobile': True},
+                {'width': 320, 'height': 480, 'deviceScaleFactor': 163/cssPpi, 'mobile': True},
                 # 6th gen iPhone (portrait mode)
-                {'width': 750, 'height': 1334, 'deviceScaleFactor': 326/90, 'mobile': True},
+                {'width': 750, 'height': 1334, 'deviceScaleFactor': 326/cssPpi, 'mobile': True},
+                # and reset
+                {'width': 0, 'height': 0, 'deviceScaleFactor': 0, 'mobile': False},
                 ]
         for s in sizes:
             tab.Emulation.setDeviceMetricsOverride (**s)
