@@ -101,6 +101,8 @@ class ChromeTreeWalker (TreeWalker):
             elif name == '#document':
                 for child in node.get ('children', []):
                     yield from self.recurse (child)
+            else:
+                assert False, name
         else:
             default_namespace = constants.namespaces["html"]
             attributes = node.get ('attributes', [])
@@ -113,9 +115,26 @@ class ChromeTreeWalker (TreeWalker):
             yield self.endTag ('', name)
 
     def __iter__ (self):
-        from pprint import pprint
         assert self.tree['nodeName'] == '#document'
         return self.recurse (self.tree)
+
+    def split (self):
+        """
+        Split response returned by DOM.getDocument(pierce=True) into independent documents
+        """
+        def recurse (node):
+            contentDocument = node.get ('contentDocument')
+            if contentDocument:
+                assert contentDocument['nodeName'] == '#document'
+                yield contentDocument
+                yield from recurse (contentDocument)
+
+            for child in node.get ('children', []):
+                yield from recurse (child)
+
+        if self.tree['nodeName'] == '#document':
+            yield self.tree
+        yield from recurse (self.tree)
 
 class StripTagFilter (Filter):
     """
@@ -308,18 +327,22 @@ def main ():
         can’t handle that though.
         """
         viewport = getFormattedViewportMetrics (tab)
-        dom = tab.DOM.getDocument (depth=-1)
-        # remove script, to make the page static and noscript, because at the
-        # time we took the snapshot scripts were enabled
-        stream = StripTagFilter (ChromeTreeWalker (dom['root']), ['script', 'noscript'])
-        serializer = HTMLSerializer ()
-        httpHeaders = StatusAndHeaders('200 OK', {}, protocol='HTTP/1.1')
-        record = writer.create_warc_record (dom['root']['documentURL'], 'response',
-                payload=BytesIO (serializer.render (stream, 'utf8')),
-                http_headers=httpHeaders,
-                warc_headers_dict={'X-DOM-Snapshot': str (True),
-                        'X-Chrome-Viewport': viewport})
-        writer.write_record (record)
+        dom = tab.DOM.getDocument (depth=-1, pierce=True)
+        for doc in ChromeTreeWalker (dom['root']).split ():
+            url = urlsplit (doc['documentURL'])
+            if url.scheme in ('http', 'https'):
+                walker = ChromeTreeWalker (doc)
+                # remove script, to make the page static and noscript, because at the
+                # time we took the snapshot scripts were enabled
+                stream = StripTagFilter (walker, ['script', 'noscript'])
+                serializer = HTMLSerializer ()
+                httpHeaders = StatusAndHeaders('200 OK', {}, protocol='HTTP/1.1')
+                record = writer.create_warc_record (doc['documentURL'], 'response',
+                        payload=BytesIO (serializer.render (stream, 'utf8')),
+                        http_headers=httpHeaders,
+                        warc_headers_dict={'X-DOM-Snapshot': str (True),
+                                'X-Chrome-Viewport': viewport})
+                writer.write_record (record)
 
     def emulateScreenMetrics (tab):
         """
