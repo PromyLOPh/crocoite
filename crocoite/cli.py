@@ -391,10 +391,10 @@ def main ():
     parser.add_argument('--browser', default='http://127.0.0.1:9222', help='DevTools URL')
     parser.add_argument('--timeout', default=10, type=int, help='Maximum time for archival')
     parser.add_argument('--idle-timeout', default=2, type=int, help='Maximum idle seconds (i.e. no requests)', dest='idleTimeout')
-    parser.add_argument('--onload', action='append', help='')
     parser.add_argument('--log-buffer', default=1000, type=int, dest='logBuffer')
     parser.add_argument('--keep-tab', action='store_true', default=False, dest='keepTab', help='Keep tab open')
-    parser.add_argument('--run-before-snapshot', default=[], action='append', dest='runBeforeSnapshot', help='Run JavaScript files before creating DOM snapshot')
+    parser.add_argument('--onload', default=[], action='append', help='Inject JavaScript file before loading page')
+    parser.add_argument('--onsnapshot', default=[], action='append', help='Run JavaScript files before creating DOM snapshot')
     parser.add_argument('url', help='Website URL')
     parser.add_argument('output', help='WARC filename')
 
@@ -481,7 +481,7 @@ def main ():
     tab.Network.loadingFailed = None
     tab.Page.loadEventFired = None
 
-    script = loadScripts (args.runBeforeSnapshot)
+    script = loadScripts (args.onsnapshot)
     writeScript ('onsnapshot', script, writer)
     tab.Runtime.evaluate (expression=script, returnByValue=True)
     writeDOMSnapshot (tab, writer)

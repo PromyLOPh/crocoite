@@ -10,10 +10,11 @@ Dependencies
 - Python 3
 - pychrome_ 
 - warcio_
-- html5lib
+- html5lib_
 
 .. _pychrome: https://github.com/fate0/pychrome
 .. _warcio: https://github.com/webrecorder/warcio
+.. _html5lib: https://github.com/html5lib/html5lib-python
 
 Usage
 -----
@@ -30,6 +31,21 @@ For `headless Google Chrome`_ add the parameters ``--headless --disable-gpu``.
 
 .. _pywb: https://github.com/ikreymer/pywb
 .. _headless Google Chrome: https://developers.google.com/web/updates/2017/04/headless-chrome
+
+Injecting JavaScript
+^^^^^^^^^^^^^^^^^^^^
+
+A lot of sites need some form of interaction to load more content. Twitter for
+instance continously loads new posts when scrolling to the bottom of the page.
+crocoite can emulate these user interactions by injecting JavaScript into the
+page before loading it. For instance ``--onload=scroll.js`` scrolls the page to
+the bottom.
+
+If extra work is required before taking a DOM snapshot, additional scripts can
+be run with ``--onsnapshot=canvas-snapshot.js``, which replaces all HTML
+``<canvas>`` elements with a static picture of their current contents.
+
+Example scripts can be found in the directory ``crocoite/data/``.
 
 Caveats
 -------
