@@ -352,9 +352,18 @@ def main ():
         """
         viewport = getFormattedViewportMetrics (tab)
         dom = tab.DOM.getDocument (depth=-1, pierce=True)
+        haveUrls = set ()
         for doc in ChromeTreeWalker (dom['root']).split ():
-            url = urlsplit (doc['documentURL'])
+            rawUrl = doc['documentURL']
+            if rawUrl in haveUrls:
+                # ignore duplicate URLs. they are usually caused by
+                # javascript-injected iframes (advertising) with no(?) src
+                logger.warning ('have DOM snapshot for URL {}, ignoring'.format (rawUrl))
+                continue
+            url = urlsplit (rawUrl)
             if url.scheme in ('http', 'https'):
+                logger.debug ('saving DOM snapshot for url {}, base {}'.format (doc['documentURL'], doc['baseURL']))
+                haveUrls.add (rawUrl)
                 walker = ChromeTreeWalker (doc)
                 # remove script, to make the page static and noscript, because at the
                 # time we took the snapshot scripts were enabled
