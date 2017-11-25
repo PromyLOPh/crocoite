@@ -36,6 +36,8 @@ from html5lib.filters.base import Filter
 from html5lib.serializer import HTMLSerializer
 from html5lib import constants
 
+from . import html
+
 logger = logging.getLogger(__name__)
 
 # 10 MB, encoded! (i.e. actual data can be larger due to compression)
@@ -156,6 +158,28 @@ class StripTagFilter (Filter):
                 yield token
             if tokenType == 'EndTag' and delete > 0:
                 delete -= 1
+
+class StripAttributeFilter (Filter):
+    """
+    Remove arbitrary HTML attributes
+    """
+
+    def __init__ (self, source, attributes):
+        Filter.__init__ (self, source)
+        self.attributes = set (map (str.lower, attributes))
+
+    def __iter__(self):
+        default_namespace = constants.namespaces["html"]
+        for token in Filter.__iter__(self):
+            data = token.get ('data')
+            # XXX: Handle EmptyTag
+            if data and token['type'] == 'StartTag':
+                newdata = {}
+                for (namespace, k), v in data.items ():
+                    if k.lower () not in self.attributes:
+                        newdata[(namespace, k)] = v
+                token['data'] = newdata
+            yield token
 
 def main ():
     def getStatusText (response):
@@ -334,7 +358,9 @@ def main ():
                 walker = ChromeTreeWalker (doc)
                 # remove script, to make the page static and noscript, because at the
                 # time we took the snapshot scripts were enabled
-                stream = StripTagFilter (walker, ['script', 'noscript'])
+                disallowedTags = ['script', 'noscript']
+                disallowedAttributes = html.eventAttributes
+                stream = StripAttributeFilter (StripTagFilter (walker, disallowedTags), disallowedAttributes)
                 serializer = HTMLSerializer ()
                 httpHeaders = StatusAndHeaders('200 OK', {}, protocol='HTTP/1.1')
                 record = writer.create_warc_record (doc['documentURL'], 'response',
