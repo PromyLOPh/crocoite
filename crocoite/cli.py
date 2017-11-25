@@ -387,11 +387,13 @@ def main ():
                 # 6th gen iPhone (portrait mode)
                 {'width': 750, 'height': 1334, 'deviceScaleFactor': 326/cssPpi, 'mobile': True},
                 # and reset
-                {'width': 0, 'height': 0, 'deviceScaleFactor': 0, 'mobile': False},
+                {'width': 1920, 'height': 1080, 'deviceScaleFactor': 1, 'mobile': False},
                 ]
         for s in sizes:
             tab.Emulation.setDeviceMetricsOverride (**s)
             tab.wait (1)
+        # XXX: this seems to be broken, it does not clear the override
+        #tab.Emulation.clearDeviceMetricsOverride ()
         # wait until assets finished loading
         while len (requests) != 0:
             tab.wait (1)
