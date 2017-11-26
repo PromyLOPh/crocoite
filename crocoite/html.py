@@ -18,8 +18,24 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+# HTML void tags, see https://html.spec.whatwg.org/multipage/syntax.html#void-elements
+voidTags = {'area',
+        'base',
+        'br',
+        'col',
+        'embed',
+        'hr',
+        'img',
+        'input',
+        'link',
+        'meta',
+        'param',
+        'source',
+        'track',
+        'wbr'}
+
 # source: https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes
-eventAttributes = ['onabort',
+eventAttributes = {'onabort',
         'onautocomplete',
         'onautocompleteerror',
         'onblur',
@@ -81,4 +97,5 @@ eventAttributes = ['onabort',
         'ontimeupdate',
         'ontoggle',
         'onvolumechange',
-        'onwaiting']
+        'onwaiting'}
+

@@ -107,14 +107,20 @@ class ChromeTreeWalker (TreeWalker):
                 assert False, name
         else:
             default_namespace = constants.namespaces["html"]
+
             attributes = node.get ('attributes', [])
             convertedAttr = {}
             for i in range (0, len (attributes), 2):
                 convertedAttr[(default_namespace, attributes[i])] = attributes[i+1]
-            yield self.startTag (default_namespace, name, convertedAttr)
-            for child in node.get ('children', []):
-                yield from self.recurse (child)
-            yield self.endTag ('', name)
+
+            children = node.get ('children', [])
+            if name.lower() in html.voidTags and not children:
+                yield from self.emptyTag (default_namespace, name, convertedAttr)
+            else:
+                yield self.startTag (default_namespace, name, convertedAttr)
+                for child in node.get ('children', []):
+                    yield from self.recurse (child)
+                yield self.endTag ('', name)
 
     def __iter__ (self):
         assert self.tree['nodeName'] == '#document'
@@ -151,7 +157,7 @@ class StripTagFilter (Filter):
         delete = 0
         for token in Filter.__iter__(self):
             tokenType = token['type']
-            if tokenType == 'StartTag':
+            if tokenType in {'StartTag', 'EmptyTag'}:
                 if delete > 0 or token['name'].lower () in self.tags:
                     delete += 1
             if delete == 0:
@@ -172,8 +178,7 @@ class StripAttributeFilter (Filter):
         default_namespace = constants.namespaces["html"]
         for token in Filter.__iter__(self):
             data = token.get ('data')
-            # XXX: Handle EmptyTag
-            if data and token['type'] == 'StartTag':
+            if data and token['type'] in {'StartTag', 'EmptyTag'}:
                 newdata = {}
                 for (namespace, k), v in data.items ():
                     if k.lower () not in self.attributes:
