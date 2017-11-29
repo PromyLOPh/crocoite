@@ -158,7 +158,7 @@ class SiteLoader:
             # redirects never “finish” loading, but yield another requestWillBeSent with this key set
             redirectResp = kwargs.get ('redirectResponse')
             if redirectResp:
-                resp = {'requestId': reqId, 'response': redirectResp}
+                resp = {'requestId': reqId, 'response': redirectResp, 'timestamp': kwargs['timestamp']}
                 item.setResponse (resp)
                 self.loadingFinished (item, redirect=True)
                 self.logger.debug ('redirected request {} has url {}'.format (reqId, req['url']))
