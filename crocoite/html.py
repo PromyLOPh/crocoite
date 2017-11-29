@@ -18,6 +18,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+"""
+HTML helper
+"""
+
 # HTML void tags, see https://html.spec.whatwg.org/multipage/syntax.html#void-elements
 voidTags = {'area',
         'base',
@@ -98,4 +102,107 @@ eventAttributes = {'onabort',
         'ontoggle',
         'onvolumechange',
         'onwaiting'}
+
+from html5lib.treewalkers.base import TreeWalker
+from html5lib.filters.base import Filter
+from html5lib.serializer import HTMLSerializer
+from html5lib import constants
+
+class ChromeTreeWalker (TreeWalker):
+    """
+    Recursive html5lib TreeWalker for Google Chrome method DOM.getDocument
+    """
+
+    def recurse (self, node):
+        name = node['nodeName']
+        if name.startswith ('#'):
+            if name == '#text':
+                yield from self.text (node['nodeValue'])
+            elif name == '#comment':
+                yield self.comment (node['nodeValue'])
+            elif name == '#document':
+                for child in node.get ('children', []):
+                    yield from self.recurse (child)
+            else:
+                assert False, name
+        else:
+            default_namespace = constants.namespaces["html"]
+
+            attributes = node.get ('attributes', [])
+            convertedAttr = {}
+            for i in range (0, len (attributes), 2):
+                convertedAttr[(default_namespace, attributes[i])] = attributes[i+1]
+
+            children = node.get ('children', [])
+            if name.lower() in voidTags and not children:
+                yield from self.emptyTag (default_namespace, name, convertedAttr)
+            else:
+                yield self.startTag (default_namespace, name, convertedAttr)
+                for child in node.get ('children', []):
+                    yield from self.recurse (child)
+                yield self.endTag ('', name)
+
+    def __iter__ (self):
+        assert self.tree['nodeName'] == '#document'
+        return self.recurse (self.tree)
+
+    def split (self):
+        """
+        Split response returned by DOM.getDocument(pierce=True) into independent documents
+        """
+        def recurse (node):
+            contentDocument = node.get ('contentDocument')
+            if contentDocument:
+                assert contentDocument['nodeName'] == '#document'
+                yield contentDocument
+                yield from recurse (contentDocument)
+
+            for child in node.get ('children', []):
+                yield from recurse (child)
+
+        if self.tree['nodeName'] == '#document':
+            yield self.tree
+        yield from recurse (self.tree)
+
+class StripTagFilter (Filter):
+    """
+    Remove arbitrary tags
+    """
+
+    def __init__ (self, source, tags):
+        Filter.__init__ (self, source)
+        self.tags = set (map (str.lower, tags))
+
+    def __iter__(self):
+        delete = 0
+        for token in Filter.__iter__(self):
+            tokenType = token['type']
+            if tokenType in {'StartTag', 'EmptyTag'}:
+                if delete > 0 or token['name'].lower () in self.tags:
+                    delete += 1
+            if delete == 0:
+                yield token
+            if tokenType == 'EndTag' and delete > 0:
+                delete -= 1
+
+class StripAttributeFilter (Filter):
+    """
+    Remove arbitrary HTML attributes
+    """
+
+    def __init__ (self, source, attributes):
+        Filter.__init__ (self, source)
+        self.attributes = set (map (str.lower, attributes))
+
+    def __iter__(self):
+        default_namespace = constants.namespaces["html"]
+        for token in Filter.__iter__(self):
+            data = token.get ('data')
+            if data and token['type'] in {'StartTag', 'EmptyTag'}:
+                newdata = {}
+                for (namespace, k), v in data.items ():
+                    if k.lower () not in self.attributes:
+                        newdata[(namespace, k)] = v
+                token['data'] = newdata
+            yield token
 
