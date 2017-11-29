@@ -31,8 +31,8 @@ class Item:
     """
 
     def __init__ (self):
-        self._chromeRequest = None
-        self._chromeResponse = None
+        self.chromeRequest = None
+        self.chromeResponse = None
         self.encodedDataLength = 0
 
     def __repr__ (self):
@@ -40,25 +40,25 @@ class Item:
 
     @property
     def request (self):
-        return self._chromeRequest['request']
+        return self.chromeRequest['request']
 
     @property
     def response (self):
-        return self._chromeResponse['response']
+        return self.chromeResponse['response']
 
     @property
     def initiator (self):
-        return self._chromeRequest['initiator']
+        return self.chromeRequest['initiator']
 
     @property
     def id (self):
-        return self._chromeRequest['requestId']
+        return self.chromeRequest['requestId']
 
     def setRequest (self, req):
-        self._chromeRequest = req
+        self.chromeRequest = req
 
     def setResponse (self, resp):
-        self._chromeResponse = resp
+        self.chromeResponse = resp
 
 class SiteLoader:
     """

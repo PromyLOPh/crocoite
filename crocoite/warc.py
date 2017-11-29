@@ -33,6 +33,8 @@ from warcio.statusandheaders import StatusAndHeaders
 from urllib.parse import urlsplit
 from logging.handlers import BufferingHandler
 import pychrome
+from datetime import datetime
+from warcio.timeutils import datetime_to_iso_date
 
 class WARCLogHandler (BufferingHandler):
     """
@@ -112,6 +114,7 @@ class WarcLoader (SiteLoader):
         initiator = item.initiator
         warcHeaders = {
                 'X-Chrome-Initiator': json.dumps (initiator),
+                'WARC-Date': datetime_to_iso_date (datetime.utcfromtimestamp (item.chromeRequest['wallTime'])),
                 }
         record = writer.create_warc_record(req['url'], 'request',
                 payload=postData, http_headers=httpHeaders,
@@ -126,6 +129,9 @@ class WarcLoader (SiteLoader):
                 'X-Chrome-Protocol': resp.get ('protocol', ''),
                 'X-Chrome-FromDiskCache': str (resp.get ('fromDiskCache')),
                 'X-Chrome-ConnectionReused': str (resp.get ('connectionReused')),
+                'WARC-Date': datetime_to_iso_date (datetime.utcfromtimestamp (
+                        item.chromeRequest['wallTime']+
+                        (item.chromeResponse['timestamp']-item.chromeRequest['timestamp']))),
                 }
 
         rawBody = b''
