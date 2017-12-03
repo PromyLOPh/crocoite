@@ -21,6 +21,7 @@
 def main ():
     import os, random, logging, argparse
     from io import BytesIO
+    from base64 import b64decode
     import pychrome
     from urllib.parse import urlsplit
     from warcio.warcwriter import WARCWriter
@@ -122,6 +123,17 @@ def main ():
                 warc_headers_dict={'Content-Type': 'application/javascript; charset=utf-8'})
         writer.write_record (record)
 
+    def writeScreenshot (tab, writer):
+        """
+        Create screenshot from tab and write it to WARC
+        """
+        viewport = getFormattedViewportMetrics (tab)
+        data = b64decode (l.tab.Page.captureScreenshot (format='png')['data'])
+        record = writer.create_warc_record (packageUrl ('screenshot.png'), 'resource',
+                payload=BytesIO (data), warc_headers_dict={'Content-Type': 'image/png',
+                'X-Chrome-Viewport': viewport})
+        writer.write_record (record)
+
     logger = logging.getLogger(__name__)
     logging.basicConfig (level=logging.DEBUG)
 
@@ -183,6 +195,8 @@ def main ():
         writeScript ('onsnapshot', script, writer)
         l.tab.Runtime.evaluate (expression=script, returnByValue=True)
         writeDOMSnapshot (l.tab, writer)
+
+        writeScreenshot (l.tab, writer)
 
     return True
 
