@@ -58,6 +58,8 @@ Caveats
 - Some fetch different scripts based on user agent. Example: youtube.com.
 - Requests containing randomly generated JavaScript callback function names
   won’t work. Example: weather.com.
+- Range requests (Range: bytes=1-100) are captured as-is, making playback
+  difficult
 
 Most of these issues can be worked around by using the DOM snapshot, which is
 also saved. This causes its own set of issues though:
