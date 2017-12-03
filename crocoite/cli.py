@@ -75,7 +75,7 @@ def main ():
                 serializer = HTMLSerializer ()
                 httpHeaders = StatusAndHeaders('200 OK', {}, protocol='HTTP/1.1')
                 record = writer.create_warc_record (doc['documentURL'], 'response',
-                        payload=BytesIO (serializer.render (stream, 'utf8')),
+                        payload=BytesIO (serializer.render (stream, 'utf-8')),
                         http_headers=httpHeaders,
                         warc_headers_dict={'X-DOM-Snapshot': str (True),
                                 'X-Chrome-Viewport': viewport})
