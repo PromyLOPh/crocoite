@@ -27,7 +27,7 @@ def main ():
     from warcio.warcwriter import WARCWriter
     from warcio.statusandheaders import StatusAndHeaders
     from html5lib.serializer import HTMLSerializer
-    from . import html, packageData, packageUrl
+    from . import html, packageData, packageUrl, browser
     from .warc import WarcLoader
     from .html import StripAttributeFilter, StripTagFilter, ChromeTreeWalker
 
@@ -138,7 +138,7 @@ def main ():
     logging.basicConfig (level=logging.DEBUG)
 
     parser = argparse.ArgumentParser(description='Save website to WARC using Google Chrome.')
-    parser.add_argument('--browser', default='http://127.0.0.1:9222', help='DevTools URL', metavar='URL')
+    parser.add_argument('--browser', help='DevTools URL', metavar='URL')
     parser.add_argument('--timeout', default=10, type=int, help='Maximum time for archival', metavar='SEC')
     parser.add_argument('--idle-timeout', default=2, type=int, help='Maximum idle seconds (i.e. no requests)', dest='idleTimeout', metavar='SEC')
     parser.add_argument('--log-buffer', default=1000, type=int, dest='logBuffer', metavar='LINES')
@@ -159,48 +159,53 @@ def main ():
     onload = loadScripts (args.onload, ['var {} = false;\n'.format (stopVarname)]).replace (stopVarname, newStopVarname)
     stopVarname = newStopVarname
 
-    browser = pychrome.Browser(url=args.browser)
+    service = browser.ChromeService ()
+    if args.browser:
+        service = browser.NullService (args.browser)
 
-    fd = open (args.output, 'wb')
-    writer = WARCWriter (fd, gzip=True)
+    with service as browserUrl:
+        browser = pychrome.Browser(url=browserUrl)
 
-    with WarcLoader (browser, args.url, writer, logBuffer=args.logBuffer,
-            maxBodySize=args.maxBodySize) as l:
-        version = l.tab.Browser.getVersion ()
-        payload = {
-                'software': __package__,
-                'browser': version['product'],
-                'useragent': version['userAgent'],
-                'viewport': getFormattedViewportMetrics (l.tab),
-                }
-        warcinfo = writer.create_warcinfo_record (filename=None, info=payload)
-        writer.write_record (warcinfo)
-        # save onload script as well
-        writeScript ('onload', onload, writer)
+        fd = open (args.output, 'wb')
+        writer = WARCWriter (fd, gzip=True)
 
-        # inject our custom javascript to the page before loading
-        l.tab.Page.addScriptToEvaluateOnNewDocument (source=onload)
-        l.start ()
+        with WarcLoader (browser, args.url, writer, logBuffer=args.logBuffer,
+                maxBodySize=args.maxBodySize) as l:
+            version = l.tab.Browser.getVersion ()
+            payload = {
+                    'software': __package__,
+                    'browser': version['product'],
+                    'useragent': version['userAgent'],
+                    'viewport': getFormattedViewportMetrics (l.tab),
+                    }
+            warcinfo = writer.create_warcinfo_record (filename=None, info=payload)
+            writer.write_record (warcinfo)
+            # save onload script as well
+            writeScript ('onload', onload, writer)
 
-        l.waitIdle (args.idleTimeout, args.timeout)
+            # inject our custom javascript to the page before loading
+            l.tab.Page.addScriptToEvaluateOnNewDocument (source=onload)
+            l.start ()
 
-        # get ready for snapshot: stop loading and scripts, disable events
-        l.tab.Runtime.evaluate (expression='{} = true; window.scrollTo (0, 0);'.format (stopVarname), returnByValue=True)
-        # if we stopped due to timeout, wait for remaining assets
-        l.waitIdle (2, 10)
+            l.waitIdle (args.idleTimeout, args.timeout)
 
-        emulateScreenMetrics (l)
+            # get ready for snapshot: stop loading and scripts, disable events
+            l.tab.Runtime.evaluate (expression='{} = true; window.scrollTo (0, 0);'.format (stopVarname), returnByValue=True)
+            # if we stopped due to timeout, wait for remaining assets
+            l.waitIdle (2, 10)
 
-        l.stop ()
+            emulateScreenMetrics (l)
 
-        if args.domSnapshot:
-            script = loadScripts (args.onsnapshot)
-            writeScript ('onsnapshot', script, writer)
-            l.tab.Runtime.evaluate (expression=script, returnByValue=True)
-            writeDOMSnapshot (l.tab, writer)
+            l.stop ()
 
-        if args.screenshot:
-            writeScreenshot (l.tab, writer)
+            if args.domSnapshot:
+                script = loadScripts (args.onsnapshot)
+                writeScript ('onsnapshot', script, writer)
+                l.tab.Runtime.evaluate (expression=script, returnByValue=True)
+                writeDOMSnapshot (l.tab, writer)
+
+            if args.screenshot:
+                writeScreenshot (l.tab, writer)
 
     return True
 

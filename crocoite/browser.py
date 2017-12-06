@@ -207,3 +207,55 @@ class SiteLoader:
         self.logger.debug ('failed {} {}'.format (reqId, kwargs['errorText'], kwargs.get ('blockedReason')))
         item = self.requests.pop (reqId, None)
 
+import subprocess
+from tempfile import mkdtemp
+from contextlib import contextmanager
+import socket, shutil
+
+@contextmanager
+def ChromeService (binary='google-chrome-stable', host='localhost', port=9222, windowSize=(1920, 1080)):
+    """
+    Start Chrome with socket activation (i.e. pass listening socket). Polling
+    is not required with this method, since reads will block until Chrome is
+    ready.
+    """
+    s = socket.socket ()
+    s.setsockopt (socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind ((host, port))
+    s.listen (10)
+    userDataDir = mkdtemp ()
+    args = [binary,
+            '--window-size={},{}'.format (*windowSize),
+            '--user-data-dir={}'.format (userDataDir), # use temporory user dir
+            '--no-default-browser-check',
+            '--no-first-run', # don’t show first run screen
+            '--disable-breakpad', # no error reports
+            '--disable-extensions',
+            '--disable-infobars',
+            '--disable-notifications', # no libnotify
+            '--headless',
+            '--disable-gpu',
+            '--hide-scrollbars', # hide scrollbars on screenshots
+            '--mute-audio', # don’t play any audio
+            '--remote-debugging-socket-fd={}'.format (s.fileno ()),
+            '--homepage=about:blank',
+            'about:blank']
+    # start new session, so ^C does not affect subprocess
+    p = subprocess.Popen (args, pass_fds=[s.fileno()], start_new_session=True,
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL)
+
+    # must be wrapped in try-finally, otherwise code in __exit__/finally is not
+    # executed
+    try:
+        yield 'http://{}:{}'.format (host, port)
+    finally:
+        p.terminate ()
+        p.wait ()
+        shutil.rmtree (userDataDir)
+
+@contextmanager
+def NullService (url):
+    yield url
+
+
