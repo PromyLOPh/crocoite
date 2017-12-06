@@ -146,6 +146,8 @@ def main ():
     #parser.add_argument('--keep-tab', action='store_true', default=False, dest='keepTab', help='Keep tab open')
     parser.add_argument('--onload', default=[], action='append', help='Inject JavaScript file before loading page', metavar='FILE')
     parser.add_argument('--onsnapshot', default=[], action='append', help='Run JavaScript files before creating DOM snapshot', metavar='FILE')
+    parser.add_argument('--no-screenshot', default=True, action='store_false', help='Do not create a screenshot of the website', dest='screenshot')
+    parser.add_argument('--no-dom-snapshot', default=True, action='store_false', help='Do not create a DOM snapshot of the website', dest='domSnapshot')
     parser.add_argument('url', help='Website URL')
     parser.add_argument('output', help='WARC filename')
 
@@ -191,12 +193,14 @@ def main ():
 
         l.stop ()
 
-        script = loadScripts (args.onsnapshot)
-        writeScript ('onsnapshot', script, writer)
-        l.tab.Runtime.evaluate (expression=script, returnByValue=True)
-        writeDOMSnapshot (l.tab, writer)
+        if args.domSnapshot:
+            script = loadScripts (args.onsnapshot)
+            writeScript ('onsnapshot', script, writer)
+            l.tab.Runtime.evaluate (expression=script, returnByValue=True)
+            writeDOMSnapshot (l.tab, writer)
 
-        writeScreenshot (l.tab, writer)
+        if args.screenshot:
+            writeScreenshot (l.tab, writer)
 
     return True
 
