@@ -66,3 +66,41 @@ also saved. This causes its own set of issues though:
 
 - JavaScript-based navigation does not work.
 
+Distributed crawling
+--------------------
+
+Configure using celeryconfig.py
+
+.. code:: python
+
+    broker_url = 'pyamqp://'
+    result_backend = 'rpc://'
+    warc_filename = '{domain}-{date}-{id}.warc.gz'
+    temp_dir = '/tmp/'
+    finished_dir = '/tmp/finished'
+
+Start a Celery worker::
+
+    celery -A crocoite.cli worker --loglevel=info
+
+Then queue archive job::
+
+    crocoite-standalone --distributed …
+
+Alternative: IRC bot using sopel_. Use contrib/celerycrocoite.py
+
+~/.sopel/default.cfg
+
+.. code:: ini
+
+    [core]
+    nick = chromebot
+    host = irc.efnet.fr
+    port = 6667
+    owner = someone
+    extra = /path/to/crocoite/contrib
+    enable = celerycrocoite
+    channels = #somechannel
+
+Then in #somechannel ``chromebot: ao <url>``
+

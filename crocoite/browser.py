@@ -178,7 +178,7 @@ class SiteLoader:
         resp = kwargs['response']
         url = urlsplit (resp['url'])
         if url.scheme in self.allowedSchemes:
-            self.logger.debug ('response {} {}'.format (reqId, resp['url']))
+            self.logger.info ('response {} {}'.format (reqId, resp['url']))
             item.setResponse (kwargs)
         else:
             self.logger.warn ('response: ignoring scheme {}'.format (url.scheme))
@@ -198,13 +198,13 @@ class SiteLoader:
         assert req['url'] == resp['url'], 'req and resp urls are not the same {} vs {}'.format (req['url'], resp['url'])
         url = urlsplit (resp['url'])
         if url.scheme in self.allowedSchemes:
-            self.logger.debug ('finished {} {}'.format (reqId, req['url']))
+            self.logger.info ('finished {} {}'.format (reqId, req['url']))
             item.encodedDataLength = kwargs['encodedDataLength']
             self.loadingFinished (item)
 
     def _loadingFailed (self, **kwargs):
         reqId = kwargs['requestId']
-        self.logger.debug ('failed {} {}'.format (reqId, kwargs['errorText'], kwargs.get ('blockedReason')))
+        self.logger.warn ('failed {} {}'.format (reqId, kwargs['errorText'], kwargs.get ('blockedReason')))
         item = self.requests.pop (reqId, None)
 
 import subprocess
@@ -219,9 +219,18 @@ def ChromeService (binary='google-chrome-stable', host='localhost', port=9222, w
     is not required with this method, since reads will block until Chrome is
     ready.
     """
-    s = socket.socket ()
-    s.setsockopt (socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind ((host, port))
+    while True:
+        s = socket.socket ()
+        s.setsockopt (socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind ((host, port))
+            break
+        except OSError:
+            # try different port
+            if port < 65000:
+                port += 1
+            else:
+                raise
     s.listen (10)
     userDataDir = mkdtemp ()
     args = [binary,

@@ -13,13 +13,14 @@ setup(
         'pychrome',
         'warcio',
         'html5lib>=0.999999999',
+        'Celery',
     ],
     entry_points={
     'console_scripts': [
             'crocoite-standalone = crocoite.cli:main',
             ],
     },
-    data_files=[
-        ('crocoite/data', ['crocoite/data/onload.js']),
-        ],
+    package_data={
+            'crocoite': ['data/*'],
+    },
 )
