@@ -1,8 +1,9 @@
 crocoite
 ========
 
-Archive websites using Google Chrome and its DevTools protocol.
-Tested with Google Chrome 62.0.3202.89 for Linux only.
+Archive websites using `headless Google Chrome_` and its DevTools protocol.
+
+.. _headless Google Chrome: https://developers.google.com/web/updates/2017/04/headless-chrome
 
 Dependencies
 ------------
@@ -11,26 +12,24 @@ Dependencies
 - pychrome_ 
 - warcio_
 - html5lib_
+- Celery_
 
 .. _pychrome: https://github.com/fate0/pychrome
 .. _warcio: https://github.com/webrecorder/warcio
 .. _html5lib: https://github.com/html5lib/html5lib-python
+.. _Celery: http://www.celeryproject.org/
 
 Usage
 -----
 
 One-shot commandline interface and pywb_ playback::
 
-    google-chrome-stable --window-size=1920,1080 --remote-debugging-port=9222 &
     crocoite-standalone http://example.com/ example.com.warc.gz
     rm -rf collections && wb-manager init test && wb-manager add test example.com.warc.gz
     wayback &
     $BROWSER http://localhost:8080
 
-For `headless Google Chrome`_ add the parameters ``--headless --disable-gpu``.
-
 .. _pywb: https://github.com/ikreymer/pywb
-.. _headless Google Chrome: https://developers.google.com/web/updates/2017/04/headless-chrome
 
 Injecting JavaScript
 ^^^^^^^^^^^^^^^^^^^^
@@ -86,11 +85,16 @@ Start a Celery worker::
 
 Then queue archive job::
 
-    crocoite-standalone --distributed …
+    crocoite-standalone --distributed http://example.com ''
 
-Alternative: IRC bot using sopel_. Use contrib/celerycrocoite.py
+The worker will create a temporary file named according to ``warc_filename`` in
+``/tmp`` while archiving and move it to ``/tmp/finished`` when done.
 
-~/.sopel/default.cfg
+IRC bot
+^^^^^^^
+
+Configure sopel_ (``~/.sopel/default.cfg``) to use the plugin located in
+``contrib/celerycrocoite.py``
 
 .. code:: ini
 
@@ -103,5 +107,16 @@ Alternative: IRC bot using sopel_. Use contrib/celerycrocoite.py
     enable = celerycrocoite
     channels = #somechannel
 
-Then in #somechannel ``chromebot: ao <url>``
+Then start it by running ``sopel``. The bot must be addressed directly (i.e.
+``chromebot: <command>``). The following commands are currently supported:
+
+ao <url>
+    Archives <url> and all of its resources (images, css, …). A unique UID
+    (UUID) is assigned to each job.
+s <uuid>
+    Get status of job with <uuid>
+r <uuid>
+    Revoke job with <uuid>. If it started already the job will be killed.
+
+.. _sopel: https://sopel.chat/
 
