@@ -136,9 +136,16 @@ class WarcLoader (SiteLoader):
 
         rawBody = b''
         base64Encoded = False
-        try:
+        if redirect:
+            # redirects reuse the same request, thus we cannot safely retrieve
+            # the body (i.e getResponseBody may return the new location’s body)
+            pass
+        elif item.encodedDataLength > self.maxBodySize:
             # check body size first, since we’re loading everything into memory
-            if item.encodedDataLength < self.maxBodySize:
+            self.logger.error ('body for {} too large {} vs {}'.format (reqId,
+                    item.encodedDataLength, self.maxBodySize))
+        else:
+            try:
                 body = self.tab.Network.getResponseBody (requestId=reqId)
                 rawBody = body['body']
                 base64Encoded = body['base64Encoded']
@@ -147,12 +154,9 @@ class WarcLoader (SiteLoader):
                     warcHeaders['X-Chrome-Base64Body'] = str (True)
                 else:
                     rawBody = rawBody.encode ('utf8')
-            else:
-                self.logger.error ('body for {} too large {} vs {}'.format (reqId,
-                        item.encodedDataLength, self.maxBodySize))
-        except pychrome.exceptions.CallMethodException:
-            self.logger.error ('no data for {} {} {}'.format (resp['url'],
-                    resp['status'], reqId))
+            except pychrome.exceptions.CallMethodException:
+                self.logger.error ('no data for {} {} {}'.format (resp['url'],
+                        resp['status'], reqId))
 
         httpHeaders = StatusAndHeaders('{} {}'.format (resp['status'],
                 self.getStatusText (resp)), resp['headers'], protocol='HTTP/1.1')

@@ -60,6 +60,7 @@ Caveats
   won’t work. Example: weather.com.
 - Range requests (Range: bytes=1-100) are captured as-is, making playback
   difficult
+- Content body of HTTP redirects cannot be retrived due to race condition
 
 Most of these issues can be worked around by using the DOM snapshot, which is
 also saved. This causes its own set of issues though:
