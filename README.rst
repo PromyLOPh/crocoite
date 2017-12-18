@@ -120,3 +120,12 @@ r <uuid>
 
 .. _sopel: https://sopel.chat/
 
+Related projects
+----------------
+
+brozzler_
+    Uses Google Chrome as well, but intercepts traffic using a proxy. Supports
+    distributed crawling and immediate playback.
+
+.. _brozzler: https://github.com/internetarchive/brozzler
+
