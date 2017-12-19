@@ -34,7 +34,42 @@ from urllib.parse import urlsplit
 from logging.handlers import BufferingHandler
 import pychrome
 from datetime import datetime
+from threading import Thread
+from queue import Queue
+
 from warcio.timeutils import datetime_to_iso_date
+from warcio.warcwriter import WARCWriter
+
+class SerializingWARCWriter (WARCWriter):
+    """
+    Serializing WARC writer using separate writer thread and queue for
+    non-blocking operation
+
+    Needs an explicit .flush() before deletion.
+    """
+
+    def __init__ (self, filebuf, *args, **kwargs):
+        WARCWriter.__init__ (self, filebuf, *args, **kwargs)
+        self.queue = Queue ()
+        self.thread = Thread (target=self._run_writer)
+        self.thread.start ()
+
+    def flush (self):
+        self.queue.put (None)
+        self.thread.join ()
+        self.queue = None
+        self.thread = None
+
+    def _run_writer (self):
+        while True:
+            item = self.queue.get ()
+            if not item:
+                break
+            out, record = item
+            WARCWriter._write_warc_record (self, out, record)
+
+    def _write_warc_record (self, out, record):
+        self.queue.put ((out, record))
 
 class WARCLogHandler (BufferingHandler):
     """

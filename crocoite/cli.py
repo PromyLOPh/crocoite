@@ -28,7 +28,6 @@ from datetime import datetime
 from base64 import b64decode
 import pychrome
 from urllib.parse import urlsplit
-from warcio.warcwriter import WARCWriter
 from warcio.statusandheaders import StatusAndHeaders
 from html5lib.serializer import HTMLSerializer
 
@@ -36,7 +35,7 @@ from celery import Celery
 from celery.utils.log import get_task_logger
 
 from . import html, packageData, packageUrl
-from .warc import WarcLoader
+from .warc import WarcLoader, SerializingWARCWriter
 from .html import StripAttributeFilter, StripTagFilter, ChromeTreeWalker
 from .browser import ChromeService, NullService
 
@@ -187,7 +186,7 @@ def archive (self, url, output, onload, onsnapshot, browser,
             fd = open (outPath, 'wb')
         else:
             fd = open (output, 'wb')
-        writer = WARCWriter (fd, gzip=True)
+        writer = SerializingWARCWriter (fd, gzip=True)
 
         with WarcLoader (browser, url, writer, logBuffer=logBuffer,
                 maxBodySize=maxBodySize) as l:
@@ -230,6 +229,7 @@ def archive (self, url, output, onload, onsnapshot, browser,
             if screenshot:
                 self.update_state (state='PROGRESS', meta={'step': 'screenshot'})
                 writeScreenshot (l.tab, writer)
+        writer.flush ()
     if not output:
         outPath = os.path.join (app.conf.finished_dir, outFile)
         os.rename (fd.name, outPath)
