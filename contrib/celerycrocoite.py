@@ -29,6 +29,19 @@ import celery
 from urllib.parse import urlsplit
 
 import crocoite.cli
+from crocoite import behavior
+
+def prettyTimeDelta (seconds):
+    """
+    Pretty-print seconds to human readable string 1d 1h 1m 1s
+    """
+    seconds = int(seconds)
+    days, seconds = divmod(seconds, 86400)
+    hours, seconds = divmod(seconds, 3600)
+    minutes, seconds = divmod(seconds, 60)
+    s = [(days, 'd'), (hours, 'h'), (minutes, 'm'), (seconds, 's')]
+    s = filter (lambda x: x[0] != 0, s)
+    return ' '.join (map (lambda x: '{}{}'.format (*x), s))
 
 def setup (bot):
     m = bot.memory['crocoite'] = SopelMemory ()
@@ -62,7 +75,7 @@ def archive (bot, trigger):
     args = {
             'url': url,
             'output': None,
-            'onload': ['scroll.js'],
+            'onload': ['scroll.js'] + behavior.getByUrl (url),
             'onsnapshot': [],
             'browser': None,
             'logBuffer': 1000,
@@ -80,7 +93,16 @@ def archive (bot, trigger):
     # XXX: for some reason we cannot access the job’s state through handle,
     # instead use a callback quirk
     j = jobs[handle.id] = {'handle': handle, 'trigger': trigger, 'state': {}}
-    bot.reply ('{} has been queued as {}'.format (url, handle.id))
+
+    # pretty-print a few selected args
+    showargs = {
+            'onload': ','.join (args['onload']),
+            'idleTimeout': prettyTimeDelta (args['idleTimeout']),
+            'timeout': prettyTimeDelta (args['timeout']),
+            }
+    strargs = ', '.join (map (lambda x: '{}={}'.format (*x), showargs.items ()))
+    bot.reply ('{} has been queued as {} with {}'.format (url, handle.id, strargs))
+
     try:
         result = handle.get (on_message=lambda x: updateState (j, x))
         bot.reply ('{} ({}) finished'.format (url, handle.id))

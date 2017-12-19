@@ -143,7 +143,6 @@ def writeScreenshot (tab, writer):
             'X-Chrome-Viewport': viewport})
     writer.write_record (record)
 
-# XXX: rabbitmq is hardcoded
 app = Celery ('crocoite.distributed')
 app.config_from_object('celeryconfig')
 logger = get_task_logger('crocoite.distributed.archive')
@@ -242,6 +241,8 @@ def stateCallback (data):
         print (data['task_id'], result['step'])
 
 def main ():
+    from crocoite import behavior
+
     parser = argparse.ArgumentParser(description='Save website to WARC using Google Chrome.')
     parser.add_argument('--browser', help='DevTools URL', metavar='URL')
     parser.add_argument('--distributed', help='Use celery worker', action='store_true')
@@ -251,6 +252,7 @@ def main ():
     parser.add_argument('--max-body-size', default=10*1024*1024, type=int, dest='maxBodySize', help='Max body size', metavar='BYTES')
     #parser.add_argument('--keep-tab', action='store_true', default=False, dest='keepTab', help='Keep tab open')
     parser.add_argument('--onload', default=[], action='append', help='Inject JavaScript file before loading page', metavar='FILE')
+    parser.add_argument('--no-behavior', default=True, action='store_false', help='Do not inject default behavior scripts', dest='behavior')
     parser.add_argument('--onsnapshot', default=[], action='append', help='Run JavaScript files before creating DOM snapshot', metavar='FILE')
     parser.add_argument('--no-screenshot', default=True, action='store_false', help='Do not create a screenshot of the website', dest='screenshot')
     parser.add_argument('--no-dom-snapshot', default=True, action='store_false', help='Do not create a DOM snapshot of the website', dest='domSnapshot')
@@ -258,14 +260,21 @@ def main ():
     parser.add_argument('output', help='WARC filename')
 
     args = parser.parse_args ()
+    if args.behavior:
+        args.onload.extend (['scroll.js'] + behavior.getByUrl (args.url))
+
+    # prepare args for function
     distributed = args.distributed
     passArgs = vars (args)
     del passArgs['distributed']
+    del passArgs['behavior']
 
     if distributed:
         result = archive.delay (**passArgs)
         result.get (on_message=stateCallback)
     else:
+        # XXX: local evaluation does not init celery logging?
+        logging.basicConfig (level=logging.INFO)
         archive (**passArgs)
 
     return True
