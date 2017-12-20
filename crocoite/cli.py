@@ -120,7 +120,7 @@ def emulateScreenMetrics (l):
     # XXX: this seems to be broken, it does not clear the override
     #tab.Emulation.clearDeviceMetricsOverride ()
     # wait until assets finished loading
-    l.waitIdle (2, 10)
+    l.waitIdle (2, 60)
 
 def loadScripts (paths, scripts=[]):
     for p in paths:
@@ -212,7 +212,7 @@ def archive (self, url, output, onload, onsnapshot, browser,
             # get ready for snapshot: stop loading and scripts, disable events
             l.tab.Runtime.evaluate (expression='{} = true; window.scrollTo (0, 0);'.format (stopVarname), returnByValue=True)
             # if we stopped due to timeout, wait for remaining assets
-            l.waitIdle (2, 10)
+            l.waitIdle (2, 60)
 
             self.update_state (state='PROGRESS', meta={'step': 'emulateScreenMetrics'})
             emulateScreenMetrics (l)
