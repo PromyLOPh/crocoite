@@ -125,6 +125,18 @@ class WarcLoader (SiteLoader):
             return text[0]
         return 'No status text available'
 
+    @staticmethod
+    def _unfoldHeaders (headers):
+        """
+        A host may send multiple headers using the same key, which Chrome folds
+        into the same item. Separate those.
+        """
+        items = []
+        for k in headers.keys ():
+            for v in headers[k].split ('\n'):
+                items.append ((k, v))
+        return items
+
     def loadingFinished (self, item, redirect=False):
         writer = self.writer
 
@@ -145,7 +157,7 @@ class WarcLoader (SiteLoader):
         if url.query:
             path += '?' + url.query
         httpHeaders = StatusAndHeaders('{} {} HTTP/1.1'.format (req['method'], path),
-                req['headers'], protocol='HTTP/1.1', is_http_request=True)
+                self._unfoldHeaders (req['headers']), protocol='HTTP/1.1', is_http_request=True)
         initiator = item.initiator
         warcHeaders = {
                 'X-Chrome-Initiator': json.dumps (initiator),
@@ -194,7 +206,8 @@ class WarcLoader (SiteLoader):
                         resp['status'], reqId))
 
         httpHeaders = StatusAndHeaders('{} {}'.format (resp['status'],
-                self.getStatusText (resp)), resp['headers'], protocol='HTTP/1.1')
+                self.getStatusText (resp)), self._unfoldHeaders (resp['headers']),
+                protocol='HTTP/1.1')
 
         # Content is saved decompressed and decoded, remove these headers
         blacklistedHeaders = {'transfer-encoding', 'content-encoding'}
