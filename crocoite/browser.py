@@ -33,7 +33,7 @@ class Item:
     def __init__ (self):
         self.chromeRequest = None
         self.chromeResponse = None
-        self.encodedDataLength = 0
+        self.chromeFinished = None
 
     def __repr__ (self):
         return '<Item {}>'.format (self.request['url'])
@@ -54,11 +54,18 @@ class Item:
     def id (self):
         return self.chromeRequest['requestId']
 
+    @property
+    def encodedDataLength (self):
+        return self.chromeFinished['encodedDataLength']
+
     def setRequest (self, req):
         self.chromeRequest = req
 
     def setResponse (self, resp):
         self.chromeResponse = resp
+
+    def setFinished (self, finished):
+        self.chromeFinished = finished
 
 class SiteLoader:
     """
@@ -199,7 +206,7 @@ class SiteLoader:
         url = urlsplit (resp['url'])
         if url.scheme in self.allowedSchemes:
             self.logger.info ('finished {} {}'.format (reqId, req['url']))
-            item.encodedDataLength = kwargs['encodedDataLength']
+            item.setFinished (kwargs)
             self.loadingFinished (item)
 
     def _loadingFailed (self, **kwargs):
