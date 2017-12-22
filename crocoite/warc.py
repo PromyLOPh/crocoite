@@ -137,11 +137,10 @@ class WarcLoader (SiteLoader):
                 items.append ((k, v))
         return items
 
-    def loadingFinished (self, item, redirect=False):
+    def _writeRequest (self, item):
         writer = self.writer
 
         req = item.request
-        reqId = item.id
         resp = item.response
         url = urlsplit (resp['url'])
 
@@ -167,29 +166,23 @@ class WarcLoader (SiteLoader):
                 payload=postData, http_headers=httpHeaders,
                 warc_headers_dict=warcHeaders)
         writer.write_record(record)
-        concurrentTo = record.rec_headers['WARC-Record-ID']
 
-        # now the response
-        warcHeaders = {
-                'WARC-Concurrent-To': concurrentTo,
-                'WARC-IP-Address': resp.get ('remoteIPAddress', ''),
-                'X-Chrome-Protocol': resp.get ('protocol', ''),
-                'X-Chrome-FromDiskCache': str (resp.get ('fromDiskCache')),
-                'X-Chrome-ConnectionReused': str (resp.get ('connectionReused')),
-                'WARC-Date': datetime_to_iso_date (datetime.utcfromtimestamp (
-                        item.chromeRequest['wallTime']+
-                        (item.chromeResponse['timestamp']-item.chromeRequest['timestamp']))),
-                }
+        return record.rec_headers['WARC-Record-ID']
+
+    def _getBody (self, item, redirect):
+        reqId = item.id
+        resp = item.response
 
         rawBody = b''
         base64Encoded = False
         if redirect:
             # redirects reuse the same request, thus we cannot safely retrieve
-            # the body (i.e getResponseBody may return the new location’s body)
+            # the body (i.e getResponseBody may return the new location’s
+            # body). This is fine.
             pass
         elif item.encodedDataLength > self.maxBodySize:
             # check body size first, since we’re loading everything into memory
-            self.logger.error ('body for {} too large {} vs {}'.format (reqId,
+            raise ValueError ('body for {} too large {} vs {}'.format (reqId,
                     item.encodedDataLength, self.maxBodySize))
         else:
             try:
@@ -198,12 +191,32 @@ class WarcLoader (SiteLoader):
                 base64Encoded = body['base64Encoded']
                 if base64Encoded:
                     rawBody = b64decode (rawBody)
-                    warcHeaders['X-Chrome-Base64Body'] = str (True)
                 else:
                     rawBody = rawBody.encode ('utf8')
             except pychrome.exceptions.CallMethodException:
-                self.logger.error ('no data for {} {} {}'.format (resp['url'],
-                        resp['status'], reqId))
+                raise ValueError ('no data for {} {} {}'.format (resp['url'],
+                    resp['status'], reqId))
+        return rawBody, base64Encoded
+
+    def _writeResponse (self, item, redirect, concurrentTo, rawBody, base64Encoded):
+        writer = self.writer
+        reqId = item.id
+        resp = item.response
+
+        # now the response
+        warcHeaders = {
+                'WARC-Concurrent-To': concurrentTo,
+                'WARC-IP-Address': resp.get ('remoteIPAddress', ''),
+                'X-Chrome-Protocol': resp.get ('protocol', ''),
+                'X-Chrome-FromDiskCache': str (resp.get ('fromDiskCache')),
+                'X-Chrome-ConnectionReused': str (resp.get ('connectionReused')),
+                'X-Chrome-Base64Body': str (base64Encoded),
+                'WARC-Date': datetime_to_iso_date (datetime.utcfromtimestamp (
+                        item.chromeRequest['wallTime']+
+                        (item.chromeResponse['timestamp']-item.chromeRequest['timestamp']))),
+                }
+
+
 
         httpHeaders = StatusAndHeaders('{} {}'.format (resp['status'],
                 self.getStatusText (resp)), self._unfoldHeaders (resp['headers']),
@@ -229,4 +242,20 @@ class WarcLoader (SiteLoader):
                 warc_headers_dict=warcHeaders, payload=BytesIO (rawBody),
                 http_headers=httpHeaders)
         writer.write_record(record)
+
+    def loadingFinished (self, item, redirect=False):
+        writer = self.writer
+
+        req = item.request
+        reqId = item.id
+        resp = item.response
+        url = urlsplit (resp['url'])
+
+        try:
+            # write neither request nor response if we cannot retrieve the body
+            rawBody, base64Encoded = self._getBody (item, redirect)
+            concurrentTo = self._writeRequest (item)
+            self._writeResponse (item, redirect, concurrentTo, rawBody, base64Encoded)
+        except ValueError as e:
+            self.logger.error (e.args[0])
 
