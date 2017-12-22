@@ -148,8 +148,12 @@ class SiteLoader:
         self.browser.close_tab(self.tab)
         return False
 
-    def loadingFinished (self, item):
-        self.logger.debug ('item finished {}'.format (item))
+    # overrideable callbacks
+    def loadingFinished (self, item, redirect=False):
+        pass
+
+    def loadingFailed (self, item):
+        pass
 
     # internal chrome callbacks
     def _requestWillBeSent (self, **kwargs):
@@ -213,6 +217,33 @@ class SiteLoader:
         reqId = kwargs['requestId']
         self.logger.warn ('failed {} {}'.format (reqId, kwargs['errorText'], kwargs.get ('blockedReason')))
         item = self.requests.pop (reqId, None)
+        self.loadingFailed (item)
+
+class AccountingSiteLoader (SiteLoader):
+    """
+    SiteLoader that keeps basic statistics about retrieved pages.
+    """
+
+    def __init__ (self, browser, url, logger=logging.getLogger(__name__)):
+        super ().__init__ (browser, url, logger)
+
+        self.stats = {'requests': 0, 'finished': 0, 'failed': 0, 'bytesRcv': 0}
+
+    def loadingFinished (self, item, redirect=False):
+        super ().loadingFinished (item, redirect)
+
+        self.stats['finished'] += 1
+        self.stats['bytesRcv'] += item.encodedDataLength
+
+    def loadingFailed (self, item):
+        super ().loadingFailed (item)
+
+        self.stats['failed'] += 1
+
+    def _requestWillBeSent (self, **kwargs):
+        super ()._requestWillBeSent (**kwargs)
+
+        self.stats['requests'] += 1
 
 import subprocess
 from tempfile import mkdtemp

@@ -160,6 +160,8 @@ def archive (self, url, output, onload, onsnapshot, browser,
     finished_dir = '/tmp/finished'
     """
 
+    ret = {'stats': None}
+
     self.update_state (state='PROGRESS', meta={'step': 'start'})
 
     stopVarname = '__' + __package__ + '_stop__'
@@ -229,11 +231,12 @@ def archive (self, url, output, onload, onsnapshot, browser,
             if screenshot:
                 self.update_state (state='PROGRESS', meta={'step': 'screenshot'})
                 writeScreenshot (l.tab, writer)
+            ret['stats'] = l.stats
         writer.flush ()
     if not output:
         outPath = os.path.join (app.conf.finished_dir, outFile)
         os.rename (fd.name, outPath)
-    return True
+    return ret
 
 def stateCallback (data):
     result = data['result']
@@ -271,11 +274,12 @@ def main ():
 
     if distributed:
         result = archive.delay (**passArgs)
-        result.get (on_message=stateCallback)
+        r = result.get (on_message=stateCallback)
     else:
         # XXX: local evaluation does not init celery logging?
         logging.basicConfig (level=logging.INFO)
-        archive (**passArgs)
+        r = archive (**passArgs)
+    print (r['stats'])
 
     return True
 

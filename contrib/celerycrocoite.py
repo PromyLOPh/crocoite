@@ -43,6 +43,16 @@ def prettyTimeDelta (seconds):
     s = filter (lambda x: x[0] != 0, s)
     return ' '.join (map (lambda x: '{}{}'.format (*x), s))
 
+def prettyBytes (b):
+    """
+    Pretty-print bytes
+    """
+    prefixes = ['B', 'KiB', 'MiB', 'GiB', 'TiB']
+    while b >= 1024 and len (prefixes) > 1:
+        b /= 1024
+        prefixes.pop (0)
+    return '{:.1f} {}'.format (b, prefixes[0])
+
 def setup (bot):
     m = bot.memory['crocoite'] = SopelMemory ()
     m['jobs'] = {}
@@ -105,7 +115,10 @@ def archive (bot, trigger):
 
     try:
         result = handle.get (on_message=lambda x: updateState (j, x))
-        bot.reply ('{} ({}) finished'.format (url, handle.id))
+        stats = result['stats']
+        bot.reply ('{} ({}) finished. {} requests, {} failed, {} received.'.format (url,
+                handle.id, stats['requests'], stats['failed'],
+                prettyBytes (stats['bytesRcv'])))
     except Exception as e:
         # json serialization does not work well with exceptions. If their class
         # names are unique we can still distinguish them.

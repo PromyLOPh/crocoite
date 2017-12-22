@@ -24,7 +24,7 @@ Classes writing data to WARC files
 
 import logging
 import json
-from .browser import SiteLoader
+from .browser import AccountingSiteLoader
 from . import packageUrl
 from http.server import BaseHTTPRequestHandler
 from base64 import b64decode
@@ -100,11 +100,11 @@ class WARCLogHandler (BufferingHandler):
         finally:
             self.release ()
 
-class WarcLoader (SiteLoader):
+class WarcLoader (AccountingSiteLoader):
     def __init__ (self, browser, url, writer,
             logger=logging.getLogger(__name__), logBuffer=1000,
             maxBodySize=10*1024*1024):
-        SiteLoader.__init__ (self, browser, url, logger)
+        super ().__init__ (browser, url, logger)
         self.writer = writer
         self.maxBodySize = maxBodySize
         self.warcLogger = WARCLogHandler (logBuffer, writer)
@@ -113,7 +113,7 @@ class WarcLoader (SiteLoader):
     def __exit__ (self, exc_type, exc_value, traceback):
         self.logger.removeHandler (self.warcLogger)
         self.warcLogger.flush ()
-        return SiteLoader.__exit__ (self, exc_type, exc_value, traceback)
+        return super ().__exit__ (exc_type, exc_value, traceback)
 
     @staticmethod
     def getStatusText (response):
@@ -244,6 +244,8 @@ class WarcLoader (SiteLoader):
         writer.write_record(record)
 
     def loadingFinished (self, item, redirect=False):
+        super ().loadingFinished (item, redirect)
+
         writer = self.writer
 
         req = item.request
