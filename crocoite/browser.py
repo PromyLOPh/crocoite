@@ -137,6 +137,8 @@ class SiteLoader:
         tab.Page.stopLoading ()
         tab.Network.disable ()
         tab.Page.disable ()
+        # XXX: we can’t drain the event queue directly, so insert (yet another) wait
+        tab.wait (1)
         tab.Network.requestWillBeSent = None
         tab.Network.responseReceived = None
         tab.Network.loadingFinished = None
