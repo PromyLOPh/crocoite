@@ -31,20 +31,15 @@ One-shot commandline interface and pywb_ playback::
 
 .. _pywb: https://github.com/ikreymer/pywb
 
-Injecting JavaScript
-^^^^^^^^^^^^^^^^^^^^
+Behavior scripts
+^^^^^^^^^^^^^^^^
 
-A lot of sites need some form of interaction to load more content. Twitter for
+A lot of sites need some form of interaction to dynamically load more content. Twitter for
 instance continously loads new posts when scrolling to the bottom of the page.
-crocoite can emulate these user interactions by injecting JavaScript into the
-page before loading it. For instance ``--onload=scroll.js`` scrolls the page to
-the bottom.
-
-If extra work is required before taking a DOM snapshot, additional scripts can
-be run with ``--onsnapshot=canvas-snapshot.js``, which replaces all HTML
-``<canvas>`` elements with a static picture of their current contents.
-
-Example scripts can be found in the directory ``crocoite/data/``.
+crocoite can emulate these user interactions (and more) by combining control
+code written in Python and injecting JavaScript into the page. The code can be
+limited to certain URLs or apply to every page loaded. By default all scripts
+available are enabled, see command line flag ``--behavior``.
 
 Caveats
 -------

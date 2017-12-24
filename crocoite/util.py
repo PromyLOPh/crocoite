@@ -18,3 +18,26 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+"""
+Random utility functions
+"""
+
+import random
+
+def randomString (length=None, chars='abcdefghijklmnopqrstuvwxyz'):
+    if length is None:
+        length = random.randint (16, 32)
+    return ''.join (map (lambda x: random.choice (chars), range (length)))
+
+def packageUrl (path):
+    """
+    Create URL for package data stored into WARC
+    """
+    return 'urn:' + __package__ + ':' + path
+
+def getFormattedViewportMetrics (tab):
+    layoutMetrics = tab.Page.getLayoutMetrics ()
+    # XXX: I’m not entirely sure which one we should use here
+    return '{}x{}'.format (layoutMetrics['layoutViewport']['clientWidth'],
+                layoutMetrics['layoutViewport']['clientHeight'])
+

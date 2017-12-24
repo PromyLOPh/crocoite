@@ -28,8 +28,7 @@ from sopel.tools import Identifier, SopelMemory
 import celery
 from urllib.parse import urlsplit
 
-import crocoite.cli
-from crocoite import behavior
+from crocoite import behavior, cli
 
 def prettyTimeDelta (seconds):
     """
@@ -82,22 +81,19 @@ def archive (bot, trigger):
         bot.reply ('{} is not a valid URL'.format (url))
         return
 
+    blacklistedBehavior = {'domSnapshot', 'screenshot'}
     args = {
             'url': url,
             'output': None,
-            'onload': ['scroll.js'] + behavior.getByUrl (url),
-            'onsnapshot': [],
+            'enabledBehaviorNames': list (behavior.availableNames-blacklistedBehavior),
             'browser': None,
             'logBuffer': 1000,
             'maxBodySize': 10*1024*1024,
             'idleTimeout': 10,
-            # 1 hour
-            'timeout': 1*60*60,
-            'domSnapshot': False,
-            'screenshot': False,
+            'timeout': 1*60*60, # 1 hour
             }
 
-    handle = crocoite.cli.archive.delay (**args)
+    handle = cli.archive.delay (**args)
     m = bot.memory['crocoite']
     jobs = m['jobs']
     # XXX: for some reason we cannot access the job’s state through handle,
@@ -106,9 +102,10 @@ def archive (bot, trigger):
 
     # pretty-print a few selected args
     showargs = {
-            'onload': ','.join (args['onload']),
+            'behavior': ','.join (args['enabledBehaviorNames']),
             'idleTimeout': prettyTimeDelta (args['idleTimeout']),
             'timeout': prettyTimeDelta (args['timeout']),
+            'maxBodySize': prettyBytes (args['maxBodySize']),
             }
     strargs = ', '.join (map (lambda x: '{}={}'.format (*x), showargs.items ()))
     bot.reply ('{} has been queued as {} with {}'.format (url, handle.id, strargs))

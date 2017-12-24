@@ -1,5 +1,6 @@
 /*	Continuously scrolls the page
  */
+var __crocoite_stop__ = false;
 (function(){
 function scroll (event) {
 	if (__crocoite_stop__) {

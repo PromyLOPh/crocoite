@@ -24,8 +24,6 @@ Classes writing data to WARC files
 
 import logging
 import json
-from .browser import AccountingSiteLoader
-from . import packageUrl
 from http.server import BaseHTTPRequestHandler
 from base64 import b64decode
 from io import BytesIO
@@ -39,6 +37,9 @@ from queue import Queue
 
 from warcio.timeutils import datetime_to_iso_date
 from warcio.warcwriter import WARCWriter
+
+from .browser import AccountingSiteLoader
+from .util import packageUrl
 
 class SerializingWARCWriter (WARCWriter):
     """
