@@ -28,7 +28,7 @@ from sopel.tools import Identifier, SopelMemory
 import celery
 from urllib.parse import urlsplit
 
-from crocoite import behavior, cli
+from crocoite import behavior, cli, defaults
 
 def prettyTimeDelta (seconds):
     """
@@ -62,7 +62,7 @@ def isValidUrl (s):
 
 @nickname_commands ('ao', 'archiveonly')
 @require_chanmsg ()
-@require_privilege (VOICE)
+#@require_privilege (VOICE)
 @thread (True)
 @example ('ao http://example.com')
 def archive (bot, trigger):
@@ -87,8 +87,8 @@ def archive (bot, trigger):
             'output': None,
             'enabledBehaviorNames': list (behavior.availableNames-blacklistedBehavior),
             'browser': None,
-            'logBuffer': 1000,
-            'maxBodySize': 10*1024*1024,
+            'logBuffer': defaults.logBuffer,
+            'maxBodySize': defaults.maxBodySize,
             'idleTimeout': 10,
             'timeout': 1*60*60, # 1 hour
             }
