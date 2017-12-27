@@ -22,7 +22,7 @@
 Module for Sopel IRC bot
 """
 
-import os, logging
+import os, logging, argparse
 from sopel.module import nickname_commands, require_chanmsg, thread, example, require_privilege, VOICE
 from sopel.tools import Identifier, SopelMemory
 import celery, celery.exceptions
@@ -72,7 +72,9 @@ def shutdown (bot):
 
 def isValidUrl (s):
     url = urlsplit (s)
-    return url.scheme and url.netloc and url.scheme in {'http', 'https'}
+    if url.scheme and url.netloc and url.scheme in {'http', 'https'}:
+        return s
+    raise TypeError ()
 
 def checkCompletedJobs (bot, jobs):
     delete = set ()
@@ -125,7 +127,7 @@ def celeryWorker (bot, q):
         if item is None:
             break
         action, trigger, args = item
-        if action == 'ao':
+        if action == 'a':
             handle = task.archive.delay (**args)
             j = jobs[handle.id] = {'handle': handle, 'trigger': trigger, 'args': args}
 
@@ -156,32 +158,46 @@ def celeryWorker (bot, q):
                 bot.msg (trigger.sender, "Job not found.")
         q.task_done ()
 
-@nickname_commands ('ao', 'archiveonly')
+class NonExitingArgumentParser (argparse.ArgumentParser):
+    def exit (self, status=0, message=None):
+        # should never be called
+        pass
+
+    def error (self, message):
+        raise Exception (message)
+
+archiveparser = NonExitingArgumentParser (prog='a', add_help=False)
+archiveparser.add_argument('--timeout', default=1*60*60, type=int, help='Maximum time for archival', metavar='SEC', choices=[60, 1*60*60, 2*60*60])
+archiveparser.add_argument('--idle-timeout', default=10, type=int, help='Maximum idle seconds (i.e. no requests)', dest='idleTimeout', metavar='SEC', choices=[1, 10, 20, 30, 60])
+archiveparser.add_argument('--max-body-size', default=defaultSettings.maxBodySize, type=int, dest='maxBodySize', help='Max body size', metavar='BYTES', choices=[1*1024*1024, 10*1024*1024, defaultSettings.maxBodySize, 100*1024*1024])
+archiveparser.add_argument('url', help='Website URL', type=isValidUrl)
+
+@nickname_commands ('a', 'archive')
 @require_chanmsg ()
 @require_privilege (VOICE)
-@example ('ao http://example.com')
+@example ('a http://example.com')
 def archive (bot, trigger):
     """
-    Archive a single page (no recursion) to WARC
+    Archive a URL to WARC
     """
 
-    url = trigger.group(2)
-    if not url:
-        bot.reply ('Need a URL')
+    try:
+        args = archiveparser.parse_args (trigger.group (2).split ())
+    except Exception as e:
+        bot.reply ('{} -- {}'.format (e.args[0], archiveparser.format_usage ()))
         return
-    if not isValidUrl (url):
-        bot.reply ('{} is not a valid URL'.format (url))
+    if not args:
+        bot.reply ('Sorry, I don’t understand {}'.format (trigger.group (2)))
         return
-
     blacklistedBehavior = {'domSnapshot', 'screenshot'}
-    settings = dict (maxBodySize=defaultSettings.maxBodySize,
-            logBuffer=defaultSettings.logBuffer, idleTimeout=10,
-            timeout=1*60*60)
-    args = dict (url=url,
+    settings = dict (maxBodySize=args.maxBodySize,
+            logBuffer=defaultSettings.logBuffer, idleTimeout=args.idleTimeout,
+            timeout=args.timeout)
+    args = dict (url=args.url,
             enabledBehaviorNames=list (behavior.availableNames-blacklistedBehavior),
             settings=settings)
     q = bot.memory['crocoite']['q']
-    q.put_nowait (('ao', trigger, args))
+    q.put_nowait (('a', trigger, args))
 
 @nickname_commands ('s', 'status')
 @example ('s c251f09e-3c26-481f-96e0-4b5f58bd1170')
