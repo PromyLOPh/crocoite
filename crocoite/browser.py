@@ -91,12 +91,14 @@ class SiteLoader:
         tab.Network.responseReceived = self._responseReceived
         tab.Network.loadingFinished = self._loadingFinished
         tab.Network.loadingFailed = self._loadingFailed
+        tab.Log.entryAdded = self._entryAdded
         #tab.Page.loadEventFired = loadEventFired
 
         # start the tab
         tab.start()
 
         # enable events
+        tab.Log.enable ()
         tab.Network.enable()
         tab.Page.enable ()
         tab.Network.clearBrowserCache ()
@@ -137,6 +139,7 @@ class SiteLoader:
         tab.Page.stopLoading ()
         tab.Network.disable ()
         tab.Page.disable ()
+        tab.Log.disable ()
         # XXX: we can’t drain the event queue directly, so insert (yet another) wait
         tab.wait (1)
         tab.Network.requestWillBeSent = None
@@ -144,6 +147,7 @@ class SiteLoader:
         tab.Network.loadingFinished = None
         tab.Network.loadingFailed = None
         tab.Page.loadEventFired = None
+        tab.Log.entryAdded = None
 
     def __exit__ (self, exc_type, exc_value, traceback):
         self.tab.stop ()
@@ -223,6 +227,14 @@ class SiteLoader:
         self.logger.warn ('failed {} {}'.format (reqId, kwargs['errorText'], kwargs.get ('blockedReason')))
         item = self.requests.pop (reqId, None)
         self.loadingFailed (item)
+
+    def _entryAdded (self, **kwargs):
+        """ Log entry added """
+        entry = kwargs['entry']
+        level = {'verbose': logging.DEBUG, 'info': logging.INFO,
+                'warning': logging.WARNING,
+                'error': logging.ERROR}[entry['level']]
+        self.logger.log (level, 'console: {}: {}'.format (entry['source'], entry['text']), extra=entry)
 
 class AccountingSiteLoader (SiteLoader):
     """
