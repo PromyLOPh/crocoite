@@ -7,6 +7,12 @@ function scroll (event) {
 		return false;
 	} else {
 		window.scrollBy (0, window.innerHeight/2);
+		document.querySelectorAll ('*').forEach (
+			function (d) {
+				if (d.clientHeight < d.scrollHeight) {
+					d.scrollBy (0, d.clientHeight/2);
+				}
+			});
 		return true;
 	}
 }
