@@ -229,15 +229,10 @@ class Twitter (HostnameFilter, JsOnload):
     scriptPath = 'per-site/twitter.js'
     hostname = ['com', 'twitter']
 
-class Instagram (HostnameFilter, JsOnload):
-    name = 'instagram'
-    scriptPath = 'per-site/instagram.js'
-    hostname = ['com', 'instagram']
-
 # available behavior scripts. Order matters, move those modifying the page
 # towards the end of available
 generic = [Scroll, EmulateScreenMetrics]
-perSite = [Twitter, Instagram]
+perSite = [Twitter]
 available = generic + perSite + [Screenshot, DomSnapshot]
 availableNames = set (map (lambda x: x.name, available))
 
