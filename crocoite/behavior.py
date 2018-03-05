@@ -222,17 +222,18 @@ class Screenshot (Behavior):
                 'X-Chrome-Viewport': viewport})
         writer.write_record (record)
 
-### Site-specific scripts ###
+class Click (JsOnload):
+    """ Generic link clicking """
 
-class Twitter (HostnameFilter, JsOnload):
-    name = 'twitter'
-    scriptPath = 'per-site/twitter.js'
-    hostname = ['com', 'twitter']
+    name = 'click'
+    scriptPath = 'click.js'
+
+### Site-specific scripts ###
 
 # available behavior scripts. Order matters, move those modifying the page
 # towards the end of available
-generic = [Scroll, EmulateScreenMetrics]
-perSite = [Twitter]
+generic = [Scroll, EmulateScreenMetrics, Click]
+perSite = []
 available = generic + perSite + [Screenshot, DomSnapshot]
 availableNames = set (map (lambda x: x.name, available))
 
