@@ -9,6 +9,8 @@ const selectorFlag = Object.freeze ({
 	none: 0,
 	multi: 1, /* click item multiple times */
 });
+const defaultClickThrottle = 50; /* in ms */
+const discoverInterval = 1000; /* 1 second */
 const sites = Object.freeze ([
 	{
 		hostname: /^www\.facebook\.com$/i,
@@ -34,6 +36,13 @@ const sites = Object.freeze ([
 			/* load more comments */
 			{s: 'a.load-more__button', flags: selectorFlag.multi},
 			],
+	}, {
+		hostname: /^(www|np)\.reddit\.com$/i,
+		selector: [
+			/* show more comments, reddit’s javascript ignores events if too
+			 * frequent */
+			{s: 'span.morecomments a', flags: selectorFlag.none, throttle: 500},
+			],
 	}
 	]);
 
@@ -56,12 +65,22 @@ function makeClickEvent () {
 
 /* throttle clicking */
 let queue = [];
+let clickTimeout = null;
 function click () {
-	let o = queue.shift ();
-	if (o !== undefined) {
+	if (queue.length > 0) {
+		const item = queue.shift ();
+		const o = item.o;
+		const selector = item.selector;
 		o.dispatchEvent (makeClickEvent ());
+
+		if (queue.length > 0) {
+			const nextTimeout = 'throttle' in selector ?
+					selector.throttle : defaultClickThrottle;
+			clickTimeout = window.setTimeout (click, nextTimeout);
+		} else {
+			clickTimeout = null;
+		}
 	}
-	return queue.length > 0;
 }
 
 /*	Element is visible if itself and all of its parents are
@@ -93,19 +112,20 @@ function discover () {
 		let obj = document.querySelectorAll (s.s);
 		for (let o of obj) {
 			if (!have.has (o) && isClickable (o)) {
-				queue.push (o);
+				queue.push ({o: o, selector: s});
 				if (!(s.flags & selectorFlag.multi)) {
 					have.add (o);
 				}
 			}
 		}
 	}
-	if (queue.length > 0) {
-		window.setInterval (click, 50);
+	if (queue.length > 0 && clickTimeout === null) {
+		/* start clicking immediately */
+		clickTimeout = window.setTimeout (click, 0);
 	}
 	return true;
 }
 
 /* XXX: can we use a mutation observer instead? */
-window.setInterval (discover, 1000);
+window.setInterval (discover, discoverInterval);
 }());
