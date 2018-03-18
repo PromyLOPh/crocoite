@@ -234,7 +234,7 @@ class SiteLoader:
         level = {'verbose': logging.DEBUG, 'info': logging.INFO,
                 'warning': logging.WARNING,
                 'error': logging.ERROR}[entry['level']]
-        self.logger.log (level, 'console: {}: {}'.format (entry['source'], entry['text']), extra=entry)
+        self.logger.log (level, 'console: {}: {}'.format (entry['source'], entry['text']), extra={'raw': entry})
 
 class AccountingSiteLoader (SiteLoader):
     """
