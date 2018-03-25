@@ -200,7 +200,7 @@ class SiteLoader:
                 self.loadingFinished (item, redirect=True)
                 self.logger.info ('redirected request {} has url {}'.format (reqId, req['url']))
             else:
-                self.logger.warn ('request {} already exists, overwriting.'.format (reqId))
+                self.logger.warning ('request {} already exists, overwriting.'.format (reqId))
 
         item = Item (self.tab)
         item.setRequest (kwargs)
@@ -218,7 +218,7 @@ class SiteLoader:
             self.logger.info ('response {} {}'.format (reqId, resp['url']))
             item.setResponse (kwargs)
         else:
-            self.logger.warn ('response: ignoring scheme {}'.format (url.scheme))
+            self.logger.warning ('response: ignoring scheme {}'.format (url.scheme))
 
     def _loadingFinished (self, **kwargs):
         """
@@ -241,7 +241,7 @@ class SiteLoader:
 
     def _loadingFailed (self, **kwargs):
         reqId = kwargs['requestId']
-        self.logger.warn ('failed {} {}'.format (reqId, kwargs['errorText'], kwargs.get ('blockedReason')))
+        self.logger.warning ('failed {} {}'.format (reqId, kwargs['errorText'], kwargs.get ('blockedReason')))
         item = self.requests.pop (reqId, None)
         self.loadingFailed (item)
 
