@@ -325,6 +325,7 @@ def ChromeService (binary='google-chrome-stable', host='localhost', port=9222, w
     p = subprocess.Popen (args, pass_fds=[s.fileno()], start_new_session=True,
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL)
+    s.close ()
 
     # must be wrapped in try-finally, otherwise code in __exit__/finally is not
     # executed
