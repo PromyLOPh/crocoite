@@ -1,7 +1,10 @@
 crocoite
 ========
 
-Archive websites using `headless Google Chrome_` and its DevTools protocol.
+Archive websites using `headless Google Chrome`_ and its DevTools protocol.
+
+.. image:: https://travis-ci.org/PromyLOPh/crocoite.svg?branch=master
+    :target: https://travis-ci.org/PromyLOPh/crocoite
 
 .. _headless Google Chrome: https://developers.google.com/web/updates/2017/04/headless-chrome
 
