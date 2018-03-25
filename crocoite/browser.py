@@ -61,6 +61,10 @@ class Item:
         return self.chromeFinished['encodedDataLength']
 
     @property
+    def url (self):
+        return self.response['url']
+
+    @property
     def body (self):
         """ Return response body or None """
         try:
@@ -340,4 +344,190 @@ def ChromeService (binary='google-chrome-stable', host='localhost', port=9222, w
 def NullService (url):
     yield url
 
+### tests ###
+
+import unittest, pychrome, time
+from http.server import BaseHTTPRequestHandler
+
+class TestHTTPRequestHandler (BaseHTTPRequestHandler):
+    encodingTestString = {
+        'latin1': 'äöü',
+        'utf-8': 'äöü',
+        'ISO-8859-1': 'äöü',
+        }
+    binaryTestData = b'\x00\x01\x02'
+    # 1×1 pixel PNG
+    imageTestData = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x00\x00\x00\x00:~\x9bU\x00\x00\x00\nIDAT\x08\x1dc\xf8\x0f\x00\x01\x01\x01\x006_g\x80\x00\x00\x00\x00IEND\xaeB`\x82'
+    htmlTestData = '<html><body><img src="/image"><img src="/nonexistent"></body></html>'
+
+    def do_GET(self):
+        path = self.path
+        if path == '/redirect/301':
+            self.send_response(301)
+            self.send_header ('Location', '/empty')
+            self.end_headers()
+        elif path == '/empty':
+            self.send_response (200)
+            self.end_headers ()
+        elif path.startswith ('/encoding'):
+            # send text data with different encodings
+            _, _, encoding = path.split ('/', 3)
+            self.send_response (200)
+            self.send_header ('Content-Type', 'text/plain; charset={}'.format (encoding))
+            self.end_headers ()
+            self.wfile.write (self.encodingTestString[encoding].encode (encoding))
+        elif path == '/binary':
+            # send binary data
+            self.send_response (200)
+            self.send_header ('Content-Type', 'application/octet-stream')
+            self.send_header ('Content-Length', len (self.binaryTestData))
+            self.end_headers ()
+            self.wfile.write (self.binaryTestData)
+        elif path == '/image':
+            # send binary data
+            self.send_response (200)
+            self.send_header ('Content-Type', 'image/png')
+            self.end_headers ()
+            self.wfile.write (self.imageTestData)
+        elif path == '/attachment':
+            self.send_response (200)
+            self.send_header ('Content-Type', 'text/plain; charset=utf-8')
+            self.send_header ('Content-Disposition', 'attachment; filename="attachment.txt"')
+            self.end_headers ()
+            self.wfile.write (self.encodingTestString['utf-8'].encode ('utf-8'))
+        elif path == '/html':
+            self.send_response (200)
+            self.send_header ('Content-Type', 'text/html; charset=utf-8')
+            self.end_headers ()
+            self.wfile.write (self.htmlTestData.encode ('utf-8'))
+        else:
+            self.send_response (404)
+            self.end_headers ()
+
+    def log_message (self, format, *args):
+        pass
+
+def startServer ():
+    import http.server
+    PORT = 8000
+    httpd = http.server.HTTPServer (("localhost", PORT), TestHTTPRequestHandler)
+    httpd.serve_forever()
+
+class TestSiteLoaderAdapter (SiteLoader):
+    def __init__ (self, browser, url):
+        SiteLoader.__init__ (self, browser, url)
+        self.finished = []
+
+    def loadingFinished (self, item, redirect=False):
+        self.finished.append (item)
+
+class TestSiteLoader (unittest.TestCase):
+    def setUp (self):
+        from multiprocessing import Process
+        self.server = Process (target=startServer)
+        self.server.start ()
+        self.baseurl = 'http://localhost:8000/'
+        self.service = ChromeService ()
+        browserUrl = self.service.__enter__ ()
+        self.browser = pychrome.Browser(url=browserUrl)
+
+    def buildAdapter (self, path):
+        return TestSiteLoaderAdapter (self.browser, '{}{}'.format (self.baseurl, path))
+
+    def assertUrls (self, l, expect):
+        urls = sorted (map (lambda x: urlsplit (x.url).path, l.finished))
+        expect = sorted (expect)
+        self.assertEqual (urls, expect)
+        
+    def test_wait (self):
+        waittime = 2
+        with self.buildAdapter ('empty') as l:
+            l.start ()
+            before = time.time ()
+            l.wait (waittime)
+            after = time.time ()
+            self.assertTrue ((after-before) >= waittime)
+
+    def test_empty (self):
+        with self.buildAdapter ('empty') as l:
+            l.start ()
+            l.waitIdle ()
+            self.assertEqual (len (l.finished), 1)
+
+    def test_redirect301 (self):
+        with self.buildAdapter ('redirect/301') as l:
+            l.start ()
+            l.waitIdle ()
+            self.assertEqual (len (l.finished), 2)
+            self.assertUrls (l, ['/redirect/301', '/empty'])
+            for item in l.finished:
+                if item.url.endswith ('/empty'):
+                    self.assertEqual (item.response['status'], 200)
+                    self.assertEqual (item.body, b'')
+                elif item.url.endswith ('/redirect/301'):
+                    self.assertEqual (item.response['status'], 301)
+                else:
+                    self.fail ('unknown url')
+
+    def test_encoding (self):
+        """ Text responses are transformed to UTF-8. Make sure this works
+        correctly. """
+        for encoding, expected in TestHTTPRequestHandler.encodingTestString.items ():
+            with self.buildAdapter ('encoding/{}'.format (encoding)) as l:
+                l.start ()
+                l.waitIdle ()
+                self.assertEqual (len (l.finished), 1)
+                self.assertUrls (l, ['/encoding/{}'.format (encoding)])
+                self.assertEqual (l.finished[0].body, expected.encode ('utf8'))
+
+    def test_binary (self):
+        """ Browser should ignore content it cannot display (i.e. octet-stream) """
+        with self.buildAdapter ('binary') as l:
+            l.start ()
+            l.waitIdle ()
+            self.assertEqual (len (l.finished), 0)
+
+    def test_image (self):
+        """ Images should be displayed inline """
+        with self.buildAdapter ('image') as l:
+            l.start ()
+            l.waitIdle ()
+            self.assertEqual (len (l.finished), 1)
+            self.assertUrls (l, ['/image'])
+            self.assertEqual (l.finished[0].body, TestHTTPRequestHandler.imageTestData)
+
+    def test_attachment (self):
+        """ And downloads won’t work in headless mode """
+        with self.buildAdapter ('attachment') as l:
+            l.start ()
+            l.waitIdle ()
+            self.assertEqual (len (l.finished), 0)
+
+    def test_html (self):
+        with self.buildAdapter ('html') as l:
+            l.start ()
+            l.waitIdle ()
+            self.assertEqual (len (l.finished), 3)
+            self.assertUrls (l, ['/html', '/image', '/nonexistent'])
+            for item in l.finished:
+                if item.url.endswith ('/html'):
+                    self.assertEqual (item.response['status'], 200)
+                    self.assertEqual (item.body, TestHTTPRequestHandler.htmlTestData.encode ('utf-8'))
+                elif item.url.endswith ('/image'):
+                    self.assertEqual (item.response['status'], 200)
+                    self.assertEqual (item.body, TestHTTPRequestHandler.imageTestData)
+                elif item.url.endswith ('/nonexistent'):
+                    self.assertEqual (item.response['status'], 404)
+                else:
+                    self.fail ('unknown url')
+
+    def tearDown (self):
+        self.service.__exit__ (None, None, None)
+        self.server.terminate ()
+        self.server.join ()
+
+if __name__ == '__main__':
+    import sys
+    if sys.argv[1] == 'server':
+        startServer ()
 
