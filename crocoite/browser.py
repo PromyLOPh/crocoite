@@ -24,13 +24,15 @@ Chrome browser interactions.
 
 import logging
 from urllib.parse import urlsplit
+from base64 import b64decode
 
 class Item:
     """
     Simple wrapper containing Chrome request and response
     """
 
-    def __init__ (self):
+    def __init__ (self, tab):
+        self.tab = tab
         self.chromeRequest = None
         self.chromeResponse = None
         self.chromeFinished = None
@@ -57,6 +59,21 @@ class Item:
     @property
     def encodedDataLength (self):
         return self.chromeFinished['encodedDataLength']
+
+    @property
+    def body (self):
+        """ Return response body or None """
+        try:
+            body = self.tab.Network.getResponseBody (requestId=self.id)
+            rawBody = body['body']
+            base64Encoded = body['base64Encoded']
+            if base64Encoded:
+                rawBody = b64decode (rawBody)
+            else:
+                rawBody = rawBody.encode ('utf8')
+            return rawBody
+        except pychrome.exceptions.CallMethodException:
+            return None
 
     def setRequest (self, req):
         self.chromeRequest = req
@@ -185,7 +202,7 @@ class SiteLoader:
             else:
                 self.logger.warn ('request {} already exists, overwriting.'.format (reqId))
 
-        item = Item ()
+        item = Item (self.tab)
         item.setRequest (kwargs)
         self.requests[reqId] = item
 

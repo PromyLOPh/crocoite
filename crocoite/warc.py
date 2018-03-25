@@ -25,12 +25,10 @@ Classes writing data to WARC files
 import logging
 import json
 from http.server import BaseHTTPRequestHandler
-from base64 import b64decode
 from io import BytesIO
 from warcio.statusandheaders import StatusAndHeaders
 from urllib.parse import urlsplit
 from logging.handlers import BufferingHandler
-import pychrome
 from datetime import datetime
 from threading import Thread
 from queue import Queue
@@ -188,15 +186,8 @@ class WarcLoader (AccountingSiteLoader):
             raise ValueError ('body for {} too large {} vs {}'.format (reqId,
                     item.encodedDataLength, self.maxBodySize))
         else:
-            try:
-                body = self.tab.Network.getResponseBody (requestId=reqId)
-                rawBody = body['body']
-                base64Encoded = body['base64Encoded']
-                if base64Encoded:
-                    rawBody = b64decode (rawBody)
-                else:
-                    rawBody = rawBody.encode ('utf8')
-            except pychrome.exceptions.CallMethodException:
+            rawBody = item.body
+            if rawBody is None:
                 raise ValueError ('no data for {} {} {}'.format (resp['url'],
                     resp['status'], reqId))
         return rawBody, base64Encoded
