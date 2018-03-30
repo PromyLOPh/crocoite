@@ -43,6 +43,14 @@ const sites = Object.freeze ([
 			 * frequent */
 			{s: 'span.morecomments a', flags: selectorFlag.none, throttle: 500},
 			],
+	}, {
+		hostname: /^www\.instagram\.com$/i,
+		selector: [
+			/* posts may have multiple images that load dynamically, click the arrow */
+			{s: 'a[role=button].coreSpriteRightChevron', flags: selectorFlag.multi, throttle: 500},
+			/* load more comments */
+			{s: 'article div ul li a[role=button]', flags: selectorFlag.multi},
+			],
 	}
 	]);
 
