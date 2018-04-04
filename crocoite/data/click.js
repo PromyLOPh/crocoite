@@ -51,6 +51,12 @@ const sites = Object.freeze ([
 			/* load more comments */
 			{s: 'article div ul li a[role=button]', flags: selectorFlag.multi},
 			],
+	}, {
+		hostname: /^www\.youtube\.com$/i,
+		selector: [
+			/* expand comment thread */
+			{s: 'ytd-comment-thread-renderer div.more-button', flags: selectorFlag.none},
+			],
 	}
 	]);
 
