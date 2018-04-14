@@ -114,6 +114,7 @@ class SiteLoader:
         tab.Network.loadingFailed = self._loadingFailed
         tab.Log.entryAdded = self._entryAdded
         #tab.Page.loadEventFired = loadEventFired
+        tab.Page.javascriptDialogOpening = self._javascriptDialogOpening
 
         # start the tab
         tab.start()
@@ -168,6 +169,7 @@ class SiteLoader:
         tab.Network.loadingFinished = None
         tab.Network.loadingFailed = None
         tab.Page.loadEventFired = None
+        tab.Page.javascriptDialogOpening = None
         tab.Log.entryAdded = None
 
     def __exit__ (self, exc_type, exc_value, traceback):
@@ -256,6 +258,18 @@ class SiteLoader:
                 'warning': logging.WARNING,
                 'error': logging.ERROR}[entry['level']]
         self.logger.log (level, 'console: {}: {}'.format (entry['source'], entry['text']), extra={'raw': entry})
+
+    def _javascriptDialogOpening (self, **kwargs):
+        t = kwargs.get ('type')
+        if t in {'alert', 'confirm', 'prompt'}:
+            self.logger.info ('javascript opened a dialog: {}, {}, canceling'.format (t, kwargs.get ('message')))
+            self.tab.Page.handleJavaScriptDialog (accept=False)
+        elif t == 'beforeunload':
+            # we must accept this one, otherwise the page will not unload/close
+            self.logger.info ('javascript opened a dialog: {}, {}, procceeding'.format (t, kwargs.get ('message')))
+            self.tab.Page.handleJavaScriptDialog (accept=True)
+        else:
+            self.logger.warning ('unknown javascript dialog type {}'.format (t))
 
 class AccountingSiteLoader (SiteLoader):
     """
@@ -359,6 +373,7 @@ class TestHTTPRequestHandler (BaseHTTPRequestHandler):
     # 1×1 pixel PNG
     imageTestData = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x00\x00\x00\x00:~\x9bU\x00\x00\x00\nIDAT\x08\x1dc\xf8\x0f\x00\x01\x01\x01\x006_g\x80\x00\x00\x00\x00IEND\xaeB`\x82'
     htmlTestData = '<html><body><img src="/image"><img src="/nonexistent"></body></html>'
+    alertData = '<html><body><script>window.addEventListener("beforeunload", function (e) { e.returnValue = "bye?"; return e.returnValue; }); alert("stopping here"); if (confirm("are you sure?") || prompt ("42?")) { window.location = "/nonexistent"; }</script><img src="/image"></body></html>'
 
     def do_GET(self):
         path = self.path
@@ -400,6 +415,11 @@ class TestHTTPRequestHandler (BaseHTTPRequestHandler):
             self.send_header ('Content-Type', 'text/html; charset=utf-8')
             self.end_headers ()
             self.wfile.write (self.htmlTestData.encode ('utf-8'))
+        elif path == '/alert':
+            self.send_response (200)
+            self.send_header ('Content-Type', 'text/html; charset=utf-8')
+            self.end_headers ()
+            self.wfile.write (self.alertData.encode ('utf-8'))
         else:
             self.send_response (404)
             self.end_headers ()
@@ -435,8 +455,8 @@ class TestSiteLoader (unittest.TestCase):
         return TestSiteLoaderAdapter (self.browser, '{}{}'.format (self.baseurl, path))
 
     def assertUrls (self, l, expect):
-        urls = sorted (map (lambda x: urlsplit (x.url).path, l.finished))
-        expect = sorted (expect)
+        urls = set (map (lambda x: urlsplit (x.url).path, l.finished))
+        expect = set (expect)
         self.assertEqual (urls, expect)
         
     def test_wait (self):
@@ -518,6 +538,21 @@ class TestSiteLoader (unittest.TestCase):
                     self.assertEqual (item.body, TestHTTPRequestHandler.imageTestData)
                 elif item.url.endswith ('/nonexistent'):
                     self.assertEqual (item.response['status'], 404)
+                else:
+                    self.fail ('unknown url')
+
+    def test_alert (self):
+        with self.buildAdapter ('alert') as l:
+            l.start ()
+            l.waitIdle ()
+            self.assertUrls (l, ['/alert', '/image'])
+            for item in l.finished:
+                if item.url.endswith ('/alert'):
+                    self.assertEqual (item.response['status'], 200)
+                    self.assertEqual (item.body, TestHTTPRequestHandler.alertData.encode ('utf-8'))
+                elif item.url.endswith ('/image'):
+                    self.assertEqual (item.response['status'], 200)
+                    self.assertEqual (item.body, TestHTTPRequestHandler.imageTestData)
                 else:
                     self.fail ('unknown url')
 
