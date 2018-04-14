@@ -186,7 +186,7 @@ class WarcLoader (AccountingSiteLoader):
             raise ValueError ('body for {} too large {} vs {}'.format (reqId,
                     item.encodedDataLength, self.maxBodySize))
         else:
-            rawBody = item.body
+            rawBody, base64Encoded = item.body
             if rawBody is None:
                 raise ValueError ('no data for {} {} {}'.format (resp['url'],
                     resp['status'], reqId))

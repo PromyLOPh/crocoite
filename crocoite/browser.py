@@ -76,9 +76,9 @@ class Item:
                 rawBody = b64decode (rawBody)
             else:
                 rawBody = rawBody.encode ('utf8')
-            return rawBody
+            return rawBody, base64Encoded
         except (pychrome.exceptions.CallMethodException, pychrome.exceptions.TimeoutException):
-            return None
+            return None, False
 
     def setRequest (self, req):
         self.chromeRequest = req
@@ -484,7 +484,7 @@ class TestSiteLoader (unittest.TestCase):
             for item in l.finished:
                 if item.url.endswith ('/empty'):
                     self.assertEqual (item.response['status'], 200)
-                    self.assertEqual (item.body, b'')
+                    self.assertEqual (item.body[0], b'')
                 elif item.url.endswith ('/redirect/301'):
                     self.assertEqual (item.response['status'], 301)
                 else:
@@ -499,7 +499,7 @@ class TestSiteLoader (unittest.TestCase):
                 l.waitIdle ()
                 self.assertEqual (len (l.finished), 1)
                 self.assertUrls (l, ['/encoding/{}'.format (encoding)])
-                self.assertEqual (l.finished[0].body, expected.encode ('utf8'))
+                self.assertEqual (l.finished[0].body[0], expected.encode ('utf8'))
 
     def test_binary (self):
         """ Browser should ignore content it cannot display (i.e. octet-stream) """
@@ -515,7 +515,7 @@ class TestSiteLoader (unittest.TestCase):
             l.waitIdle ()
             self.assertEqual (len (l.finished), 1)
             self.assertUrls (l, ['/image'])
-            self.assertEqual (l.finished[0].body, TestHTTPRequestHandler.imageTestData)
+            self.assertEqual (l.finished[0].body[0], TestHTTPRequestHandler.imageTestData)
 
     def test_attachment (self):
         """ And downloads won’t work in headless mode """
@@ -533,10 +533,10 @@ class TestSiteLoader (unittest.TestCase):
             for item in l.finished:
                 if item.url.endswith ('/html'):
                     self.assertEqual (item.response['status'], 200)
-                    self.assertEqual (item.body, TestHTTPRequestHandler.htmlTestData.encode ('utf-8'))
+                    self.assertEqual (item.body[0], TestHTTPRequestHandler.htmlTestData.encode ('utf-8'))
                 elif item.url.endswith ('/image'):
                     self.assertEqual (item.response['status'], 200)
-                    self.assertEqual (item.body, TestHTTPRequestHandler.imageTestData)
+                    self.assertEqual (item.body[0], TestHTTPRequestHandler.imageTestData)
                 elif item.url.endswith ('/nonexistent'):
                     self.assertEqual (item.response['status'], 404)
                 else:
@@ -550,10 +550,10 @@ class TestSiteLoader (unittest.TestCase):
             for item in l.finished:
                 if item.url.endswith ('/alert'):
                     self.assertEqual (item.response['status'], 200)
-                    self.assertEqual (item.body, TestHTTPRequestHandler.alertData.encode ('utf-8'))
+                    self.assertEqual (item.body[0], TestHTTPRequestHandler.alertData.encode ('utf-8'))
                 elif item.url.endswith ('/image'):
                     self.assertEqual (item.response['status'], 200)
-                    self.assertEqual (item.body, TestHTTPRequestHandler.imageTestData)
+                    self.assertEqual (item.body[0], TestHTTPRequestHandler.imageTestData)
                 else:
                     self.fail ('unknown url')
 
