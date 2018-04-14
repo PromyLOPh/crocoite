@@ -25,6 +25,7 @@ Chrome browser interactions.
 import logging
 from urllib.parse import urlsplit
 from base64 import b64decode
+import pychrome
 
 class Item:
     """
@@ -68,7 +69,7 @@ class Item:
     def body (self):
         """ Return response body or None """
         try:
-            body = self.tab.Network.getResponseBody (requestId=self.id)
+            body = self.tab.Network.getResponseBody (requestId=self.id, _timeout=60)
             rawBody = body['body']
             base64Encoded = body['base64Encoded']
             if base64Encoded:
@@ -76,7 +77,7 @@ class Item:
             else:
                 rawBody = rawBody.encode ('utf8')
             return rawBody
-        except pychrome.exceptions.CallMethodException:
+        except (pychrome.exceptions.CallMethodException, pychrome.exceptions.TimeoutException):
             return None
 
     def setRequest (self, req):
@@ -360,7 +361,7 @@ def NullService (url):
 
 ### tests ###
 
-import unittest, pychrome, time
+import unittest, time
 from http.server import BaseHTTPRequestHandler
 
 class TestHTTPRequestHandler (BaseHTTPRequestHandler):
