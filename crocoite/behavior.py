@@ -215,12 +215,22 @@ class Screenshot (Behavior):
         tab = self.loader.tab
         writer = self.loader.writer
 
-        viewport = getFormattedViewportMetrics (tab)
-        data = b64decode (tab.Page.captureScreenshot (format='png')['data'])
-        record = writer.create_warc_record (packageUrl ('screenshot.png'), 'resource',
-                payload=BytesIO (data), warc_headers_dict={'Content-Type': 'image/png',
-                'X-Chrome-Viewport': viewport})
-        writer.write_record (record)
+        # see https://github.com/GoogleChrome/puppeteer/blob/230be28b067b521f0577206899db01f0ca7fc0d2/examples/screenshots-longpage.js
+        # Hardcoded max texture size of 16,384 (crbug.com/770769)
+        maxDim = 16*1024
+        metrics = tab.Page.getLayoutMetrics ()
+        contentSize = metrics['contentSize']
+        width = min (contentSize['width'], maxDim)
+        # we’re ignoring horizontal scroll intentionally. Most horizontal
+        # layouts use JavaScript scrolling and don’t extend the viewport.
+        for yoff in range (0, contentSize['height'], maxDim):
+            height = min (contentSize['height'] - yoff, maxDim)
+            clip = {'x': 0, 'y': yoff, 'width': width, 'height': height, 'scale': 1}
+            data = b64decode (tab.Page.captureScreenshot (format='png', clip=clip)['data'])
+            url = packageUrl ('screenshot-{}-{}.png'.format (0, yoff))
+            record = writer.create_warc_record (url, 'resource',
+                    payload=BytesIO (data), warc_headers_dict={'Content-Type': 'image/png'})
+            writer.write_record (record)
 
 class Click (JsOnload):
     """ Generic link clicking """
