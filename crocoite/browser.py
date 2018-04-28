@@ -66,6 +66,10 @@ class Item:
         return self.response['url']
 
     @property
+    def parsedUrl (self):
+        return urlsplit (self.url)
+
+    @property
     def body (self):
         """ Return response body or None """
         try:
@@ -378,9 +382,9 @@ class TestHTTPRequestHandler (BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path
-        if path == '/redirect/301':
+        if path.startswith ('/redirect/301'):
             self.send_response(301)
-            self.send_header ('Location', '/empty')
+            self.send_header ('Location', path[13:])
             self.end_headers()
         elif path == '/empty':
             self.send_response (200)
@@ -456,7 +460,7 @@ class TestSiteLoader (unittest.TestCase):
         return TestSiteLoaderAdapter (self.browser, '{}{}'.format (self.baseurl, path))
 
     def assertUrls (self, l, expect):
-        urls = set (map (lambda x: urlsplit (x.url).path, l.finished))
+        urls = set (map (lambda x: x.parsedUrl.path, l.finished))
         expect = set (expect)
         self.assertEqual (urls, expect)
         
@@ -476,16 +480,32 @@ class TestSiteLoader (unittest.TestCase):
             self.assertEqual (len (l.finished), 1)
 
     def test_redirect301 (self):
-        with self.buildAdapter ('redirect/301') as l:
+        with self.buildAdapter ('redirect/301/empty') as l:
             l.start ()
             l.waitIdle ()
             self.assertEqual (len (l.finished), 2)
-            self.assertUrls (l, ['/redirect/301', '/empty'])
+            self.assertUrls (l, ['/redirect/301/empty', '/empty'])
             for item in l.finished:
-                if item.url.endswith ('/empty'):
+                if item.parsedUrl.path == '/empty':
                     self.assertEqual (item.response['status'], 200)
                     self.assertEqual (item.body[0], b'')
-                elif item.url.endswith ('/redirect/301'):
+                elif item.parsedUrl.path == '/redirect/301/empty':
+                    self.assertEqual (item.response['status'], 301)
+                else:
+                    self.fail ('unknown url')
+
+    def test_redirect301multi (self):
+        with self.buildAdapter ('redirect/301/redirect/301/empty') as l:
+            l.start ()
+            l.waitIdle ()
+            self.assertEqual (len (l.finished), 3)
+            self.assertUrls (l, ['/redirect/301/redirect/301/empty', '/redirect/301/empty', '/empty'])
+            for item in l.finished:
+                if item.parsedUrl.path == '/empty':
+                    self.assertEqual (item.response['status'], 200)
+                    self.assertEqual (item.body[0], b'')
+                elif item.parsedUrl.path in {'/redirect/301/empty', \
+                        '/redirect/301/redirect/301/empty'}:
                     self.assertEqual (item.response['status'], 301)
                 else:
                     self.fail ('unknown url')
@@ -531,13 +551,13 @@ class TestSiteLoader (unittest.TestCase):
             self.assertEqual (len (l.finished), 3)
             self.assertUrls (l, ['/html', '/image', '/nonexistent'])
             for item in l.finished:
-                if item.url.endswith ('/html'):
+                if item.parsedUrl.path == '/html':
                     self.assertEqual (item.response['status'], 200)
                     self.assertEqual (item.body[0], TestHTTPRequestHandler.htmlTestData.encode ('utf-8'))
-                elif item.url.endswith ('/image'):
+                elif item.parsedUrl.path == '/image':
                     self.assertEqual (item.response['status'], 200)
                     self.assertEqual (item.body[0], TestHTTPRequestHandler.imageTestData)
-                elif item.url.endswith ('/nonexistent'):
+                elif item.parsedUrl.path == '/nonexistent':
                     self.assertEqual (item.response['status'], 404)
                 else:
                     self.fail ('unknown url')
@@ -548,10 +568,10 @@ class TestSiteLoader (unittest.TestCase):
             l.waitIdle ()
             self.assertUrls (l, ['/alert', '/image'])
             for item in l.finished:
-                if item.url.endswith ('/alert'):
+                if item.parsedUrl.path == '/alert':
                     self.assertEqual (item.response['status'], 200)
                     self.assertEqual (item.body[0], TestHTTPRequestHandler.alertData.encode ('utf-8'))
-                elif item.url.endswith ('/image'):
+                elif item.parsedUrl.path == '/image':
                     self.assertEqual (item.response['status'], 200)
                     self.assertEqual (item.body[0], TestHTTPRequestHandler.imageTestData)
                 else:
