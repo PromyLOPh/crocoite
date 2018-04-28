@@ -98,6 +98,28 @@ class Item:
                 raise ValueError ('Cannot fetch request body')
         return None, False
 
+    @property
+    def requestHeaders (self):
+        # the response object may contain refined headers, which were
+        # *actually* sent over the wire
+        return self._unfoldHeaders (self.response.get ('requestHeaders', self.request['headers']))
+
+    @property
+    def responseHeaders (self):
+        return self._unfoldHeaders (self.response['headers'])
+
+    @staticmethod
+    def _unfoldHeaders (headers):
+        """
+        A host may send multiple headers using the same key, which Chrome folds
+        into the same item. Separate those.
+        """
+        items = []
+        for k in headers.keys ():
+            for v in headers[k].split ('\n'):
+                items.append ((k, v))
+        return items
+
     def setRequest (self, req):
         self.chromeRequest = req
 

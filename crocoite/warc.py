@@ -126,18 +126,6 @@ class WarcLoader (AccountingSiteLoader):
             return text[0]
         return 'No status text available'
 
-    @staticmethod
-    def _unfoldHeaders (headers):
-        """
-        A host may send multiple headers using the same key, which Chrome folds
-        into the same item. Separate those.
-        """
-        items = []
-        for k in headers.keys ():
-            for v in headers[k].split ('\n'):
-                items.append ((k, v))
-        return items
-
     def _writeRequest (self, item):
         writer = self.writer
 
@@ -145,16 +133,11 @@ class WarcLoader (AccountingSiteLoader):
         resp = item.response
         url = urlsplit (resp['url'])
 
-        # overwrite request headers with those actually sent
-        newReqHeaders = resp.get ('requestHeaders')
-        if newReqHeaders:
-            req['headers'] = newReqHeaders
-
         path = url.path
         if url.query:
             path += '?' + url.query
         httpHeaders = StatusAndHeaders('{} {} HTTP/1.1'.format (req['method'], path),
-                self._unfoldHeaders (req['headers']), protocol='HTTP/1.1', is_http_request=True)
+                item.requestHeaders, protocol='HTTP/1.1', is_http_request=True)
         initiator = item.initiator
         warcHeaders = {
                 'X-Chrome-Initiator': json.dumps (initiator),
@@ -208,10 +191,8 @@ class WarcLoader (AccountingSiteLoader):
                         (item.chromeResponse['timestamp']-item.chromeRequest['timestamp']))),
                 }
 
-
-
         httpHeaders = StatusAndHeaders('{} {}'.format (resp['status'],
-                self.getStatusText (resp)), self._unfoldHeaders (resp['headers']),
+                self.getStatusText (resp)), item.responseHeaders,
                 protocol='HTTP/1.1')
 
         # Content is saved decompressed and decoded, remove these headers
