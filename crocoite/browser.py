@@ -82,7 +82,21 @@ class Item:
                 rawBody = rawBody.encode ('utf8')
             return rawBody, base64Encoded
         except (pychrome.exceptions.CallMethodException, pychrome.exceptions.TimeoutException):
-            return None, False
+            raise ValueError ('Cannot fetch response body')
+
+    @property
+    def requestBody (self):
+        """ Get request/POST body """
+        req = self.request
+        postData = req.get ('postData')
+        if postData:
+            return postData.encode ('utf8'), False
+        elif req.get ('hasPostData', False):
+            try:
+                return b64decode (self.tab.Network.getRequestPostData (requestId=self.id, _timeout=60)['postData']), True
+            except (pychrome.exceptions.CallMethodException, pychrome.exceptions.TimeoutException):
+                raise ValueError ('Cannot fetch request body')
+        return None, False
 
     def setRequest (self, req):
         self.chromeRequest = req

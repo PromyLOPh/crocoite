@@ -150,9 +150,6 @@ class WarcLoader (AccountingSiteLoader):
         if newReqHeaders:
             req['headers'] = newReqHeaders
 
-        postData = req.get ('postData')
-        if postData:
-            postData = BytesIO (postData.encode ('utf8'))
         path = url.path
         if url.query:
             path += '?' + url.query
@@ -163,8 +160,12 @@ class WarcLoader (AccountingSiteLoader):
                 'X-Chrome-Initiator': json.dumps (initiator),
                 'WARC-Date': datetime_to_iso_date (datetime.utcfromtimestamp (item.chromeRequest['wallTime'])),
                 }
+        payload, payloadBase64Encoded = item.requestBody
+        if payload:
+            payload = BytesIO (payload)
+            warcHeaders['X-Chrome-Base64Body'] = str (payloadBase64Encoded)
         record = writer.create_warc_record(req['url'], 'request',
-                payload=postData, http_headers=httpHeaders,
+                payload=payload, http_headers=httpHeaders,
                 warc_headers_dict=warcHeaders)
         writer.write_record(record)
 
@@ -187,9 +188,6 @@ class WarcLoader (AccountingSiteLoader):
                     item.encodedDataLength, self.maxBodySize))
         else:
             rawBody, base64Encoded = item.body
-            if rawBody is None:
-                raise ValueError ('no data for {} {} {}'.format (resp['url'],
-                    resp['status'], reqId))
         return rawBody, base64Encoded
 
     def _writeResponse (self, item, redirect, concurrentTo, rawBody, base64Encoded):
