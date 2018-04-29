@@ -38,7 +38,7 @@ from warcio.warcwriter import WARCWriter
 
 from .browser import AccountingSiteLoader
 from .util import packageUrl
-from . import defaults
+from .controller import defaultSettings
 
 class SerializingWARCWriter (WARCWriter):
     """
@@ -103,8 +103,8 @@ class WARCLogHandler (BufferingHandler):
 class WarcLoader (AccountingSiteLoader):
     def __init__ (self, browser, url, writer,
             logger=logging.getLogger(__name__),
-            logBuffer=defaults.logBuffer,
-            maxBodySize=defaults.maxBodySize):
+            logBuffer=defaultSettings.logBuffer,
+            maxBodySize=defaultSettings.maxBodySize):
         super ().__init__ (browser, url, logger)
         self.writer = writer
         self.maxBodySize = maxBodySize

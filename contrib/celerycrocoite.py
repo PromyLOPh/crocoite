@@ -32,7 +32,8 @@ from threading import Thread
 from queue import Queue
 import queue
 
-from crocoite import behavior, cli, defaults
+from crocoite import behavior, task
+from crocoite.controller import defaultSettings
 
 def prettyTimeDelta (seconds):
     """
@@ -125,14 +126,14 @@ def celeryWorker (bot, q):
             break
         action, trigger, args = item
         if action == 'ao':
-            handle = cli.archive.delay (**args)
+            handle = task.archive.delay (**args)
             j = jobs[handle.id] = {'handle': handle, 'trigger': trigger, 'args': args}
 
             # pretty-print a few selected args
             showargs = {
-                    'idleTimeout': prettyTimeDelta (args['idleTimeout']),
-                    'timeout': prettyTimeDelta (args['timeout']),
-                    'maxBodySize': prettyBytes (args['maxBodySize']),
+                    'idleTimeout': prettyTimeDelta (args['settings']['idleTimeout']),
+                    'timeout': prettyTimeDelta (args['settings']['timeout']),
+                    'maxBodySize': prettyBytes (args['settings']['maxBodySize']),
                     }
             strargs = ', '.join (map (lambda x: '{}={}'.format (*x), showargs.items ()))
             bot.msg (trigger.sender, '{}: {} has been queued as {} with {}'.format (trigger.nick, args['url'], handle.id, strargs))
@@ -173,16 +174,12 @@ def archive (bot, trigger):
         return
 
     blacklistedBehavior = {'domSnapshot', 'screenshot'}
-    args = {
-            'url': url,
-            'output': None,
-            'enabledBehaviorNames': list (behavior.availableNames-blacklistedBehavior),
-            'browser': None,
-            'logBuffer': defaults.logBuffer,
-            'maxBodySize': defaults.maxBodySize,
-            'idleTimeout': 10,
-            'timeout': 1*60*60, # 1 hour
-            }
+    settings = dict (maxBodySize=defaultSettings.maxBodySize,
+            logBuffer=defaultSettings.logBuffer, idleTimeout=10,
+            timeout=1*60*60)
+    args = dict (url=url,
+            enabledBehaviorNames=list (behavior.availableNames-blacklistedBehavior),
+            settings=settings)
     q = bot.memory['crocoite']['q']
     q.put_nowait (('ao', trigger, args))
 

@@ -79,7 +79,7 @@ Configure using celeryconfig.py
 
 Start a Celery worker::
 
-    celery -A crocoite.cli worker --loglevel=info
+    celery -A crocoite.task worker --loglevel=info
 
 Then queue archive job::
 
