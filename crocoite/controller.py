@@ -40,6 +40,13 @@ from .browser import ChromeService
 from .warc import WarcLoader, SerializingWARCWriter
 from .util import getFormattedViewportMetrics
 
+def firstOrNone (it):
+    """ Return first item of iterator it or None if empty """
+    try:
+        return next (it)
+    except StopIteration:
+        return None
+
 class SinglePageController:
     """
     Archive a single page url to file output.
@@ -55,7 +62,7 @@ class SinglePageController:
         self.logger = logger
 
     def run (self):
-        ret = {'stats': None}
+        ret = {'stats': None, 'links': None}
 
         with self.service as browser:
             browser = pychrome.Browser (url=browser)
@@ -77,6 +84,8 @@ class SinglePageController:
                 # not all behavior scripts are allowed for every URL, filter them
                 enabledBehavior = list (filter (lambda x: self.url in x,
                         map (lambda x: x (l), self.behavior)))
+                linksBehavior = firstOrNone (filter (lambda x: isinstance (x, cbehavior.ExtractLinks),
+                        enabledBehavior))
 
                 for b in enabledBehavior:
                     self.logger.debug ('starting onload behavior {}'.format (b.name))
@@ -98,6 +107,7 @@ class SinglePageController:
                     b.onfinish ()
 
                 ret['stats'] = l.stats
+                ret['links'] = linksBehavior.links if linksBehavior else None
             writer.flush ()
         return ret
 

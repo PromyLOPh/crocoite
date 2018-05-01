@@ -238,11 +238,29 @@ class Click (JsOnload):
     name = 'click'
     scriptPath = 'click.js'
 
-### Site-specific scripts ###
+class ExtractLinks (Behavior):
+    """
+    Extract links from a page using JavaScript
+    
+    We could retrieve a HTML snapshot and extract links here, but we’d have to
+    manually resolve relative links.
+    """
+
+    name = 'extractLinks'
+
+    def __init__ (self, loader):
+        super ().__init__ (loader)
+        self.script = self.loadScript ('extract-links.js')
+        self.links = None
+
+    def onfinish (self):
+        tab = self.loader.tab
+        self.useScript (self.script)
+        self.links = list (set (tab.Runtime.evaluate (expression=self.script, returnByValue=True)['result']['value']))
 
 # available behavior scripts. Order matters, move those modifying the page
 # towards the end of available
-generic = [Scroll, EmulateScreenMetrics, Click]
+generic = [Scroll, EmulateScreenMetrics, Click, ExtractLinks]
 perSite = []
 available = generic + perSite + [Screenshot, DomSnapshot]
 availableNames = set (map (lambda x: x.name, available))

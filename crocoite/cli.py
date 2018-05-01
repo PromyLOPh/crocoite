@@ -22,7 +22,7 @@
 Command line interface
 """
 
-import logging, argparse
+import logging, argparse, json, sys
 
 from . import behavior
 from .controller import SinglePageController, defaultSettings, ControllerSettings
@@ -68,7 +68,8 @@ def main ():
                 timeout=args.timeout)
         with open (args.output, 'wb') as fd:
             controller = SinglePageController (args.url, fd, settings=settings)
-            controller.run ()
+            r = controller.run ()
+    json.dump (r, sys.stdout)
 
     return True
 
