@@ -340,64 +340,79 @@ class AccountingSiteLoader (SiteLoader):
 
 import subprocess
 from tempfile import mkdtemp
-from contextlib import contextmanager
 import socket, shutil
 
-@contextmanager
-def ChromeService (binary='google-chrome-stable', host='localhost', port=9222, windowSize=(1920, 1080)):
+class ChromeService:
     """
     Start Chrome with socket activation (i.e. pass listening socket). Polling
     is not required with this method, since reads will block until Chrome is
     ready.
     """
-    while True:
-        s = socket.socket ()
-        s.setsockopt (socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            s.bind ((host, port))
-            break
-        except OSError:
-            # try different port
-            if port < 65000:
-                port += 1
-            else:
-                raise
-    s.listen (10)
-    userDataDir = mkdtemp ()
-    args = [binary,
-            '--window-size={},{}'.format (*windowSize),
-            '--user-data-dir={}'.format (userDataDir), # use temporory user dir
-            '--no-default-browser-check',
-            '--no-first-run', # don’t show first run screen
-            '--disable-breakpad', # no error reports
-            '--disable-extensions',
-            '--disable-infobars',
-            '--disable-notifications', # no libnotify
-            '--headless',
-            '--disable-gpu',
-            '--hide-scrollbars', # hide scrollbars on screenshots
-            '--mute-audio', # don’t play any audio
-            '--remote-debugging-socket-fd={}'.format (s.fileno ()),
-            '--homepage=about:blank',
-            'about:blank']
-    # start new session, so ^C does not affect subprocess
-    p = subprocess.Popen (args, pass_fds=[s.fileno()], start_new_session=True,
-            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL)
-    s.close ()
 
-    # must be wrapped in try-finally, otherwise code in __exit__/finally is not
-    # executed
-    try:
-        yield 'http://{}:{}'.format (host, port)
-    finally:
-        p.terminate ()
-        p.wait ()
-        shutil.rmtree (userDataDir)
+    def __init__ (self, binary='google-chrome-stable', host='localhost', port=9222, windowSize=(1920, 1080)):
+        self.binary = binary
+        self.host = host
+        self.port = port
+        self.windowSize = windowSize
+        self.p = None
 
-@contextmanager
-def NullService (url):
-    yield url
+    def __enter__ (self):
+        assert self.p is None
+
+        port = self.port
+        while True:
+            s = socket.socket ()
+            s.setsockopt (socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                s.bind ((self.host, port))
+                break
+            except OSError:
+                # try different port
+                if port < 65000:
+                    port += 1
+                else:
+                    raise
+        s.listen (10)
+        self.userDataDir = mkdtemp ()
+        args = [self.binary,
+                '--window-size={},{}'.format (*self.windowSize),
+                '--user-data-dir={}'.format (self.userDataDir), # use temporory user dir
+                '--no-default-browser-check',
+                '--no-first-run', # don’t show first run screen
+                '--disable-breakpad', # no error reports
+                '--disable-extensions',
+                '--disable-infobars',
+                '--disable-notifications', # no libnotify
+                '--headless',
+                '--disable-gpu',
+                '--hide-scrollbars', # hide scrollbars on screenshots
+                '--mute-audio', # don’t play any audio
+                '--remote-debugging-socket-fd={}'.format (s.fileno ()),
+                '--homepage=about:blank',
+                'about:blank']
+        # start new session, so ^C does not affect subprocess
+        self.p = subprocess.Popen (args, pass_fds=[s.fileno()], start_new_session=True,
+                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL)
+        s.close ()
+
+        return 'http://{}:{}'.format (self.host, port)
+
+    def __exit__ (self, *exc):
+        self.p.terminate ()
+        self.p.wait ()
+        shutil.rmtree (self.userDataDir)
+        self.p = None
+
+class NullService:
+    def __init__ (self, url):
+        self.url = url
+
+    def __enter__ (self):
+        return url
+
+    def __exit__ (self, *exc):
+        pass
 
 ### tests ###
 
