@@ -32,6 +32,7 @@ class ControllerSettings:
 defaultSettings = ControllerSettings ()
 
 import logging
+from urllib.parse import urlsplit, urlunsplit
 
 import pychrome
 
@@ -109,5 +110,104 @@ class SinglePageController:
                 ret['stats'] = l.stats
                 ret['links'] = linksBehavior.links if linksBehavior else None
             writer.flush ()
+        return ret
+
+from collections import UserDict
+
+class IntegerDict (UserDict):
+    """ Dict with dict/dict per-item arithmetic propagation, i.e. {1: 2}+{1: 1}={1: 3} """
+    def __add__ (self, b):
+        newdict = self.__class__ (self)
+        for k, v in b.items ():
+            if k in self:
+                newdict[k] += v
+            else:
+                newdict[k] = v
+        return newdict
+
+class RecursionPolicy:
+    """ Abstract recursion policy """
+    def __call__ (self, urls):
+        raise NotImplementedError
+
+class DepthLimit (RecursionPolicy):
+    """
+    Limit recursion by depth.
+    
+    depth==0 means no recursion, depth==1 is the page and outgoing links, …
+    """
+    def __init__ (self, maxdepth=0):
+        self.maxdepth = maxdepth
+
+    def __call__ (self, urls):
+        if self.maxdepth <= 0:
+            return {}
+        else:
+            self.maxdepth -= 1
+            return urls
+
+    def __repr__ (self):
+        return '<DepthLimit {}>'.format (self.maxdepth)
+
+class PrefixLimit (RecursionPolicy):
+    """
+    Limit recursion by prefix
+    
+    i.e. prefix=http://example.com/foo
+    ignored: http://example.com/bar http://offsite.example/foo
+    accepted: http://example.com/foobar http://example.com/foo/bar
+    """
+    def __init__ (self, prefix):
+        self.prefix = prefix
+
+    def __call__ (self, urls):
+        return set (filter (lambda u: u.startswith (self.prefix), urls))
+
+def removeFragment (u):
+    """ Remove fragment from url (i.e. #hashvalue) """
+    s = urlsplit (u)
+    return urlunsplit ((s.scheme, s.netloc, s.path, s.query, ''))
+
+class RecursiveController:
+    """
+    Simple recursive controller
+
+    Visits links acording to recursionPolicy
+    """
+
+    def __init__ (self, url, output, service=ChromeService (), behavior=cbehavior.available, \
+            logger=logging.getLogger(__name__), settings=defaultSettings,
+            recursionPolicy=DepthLimit (0)):
+        self.url = url
+        self.output = output
+        self.service = service
+        self.behavior = behavior
+        self.settings = settings
+        self.logger = logger
+        self.recursionPolicy = recursionPolicy
+
+    def run (self):
+        have = set ()
+        urls = set ([self.url])
+        ret = {'stats': IntegerDict ()}
+
+        while urls:
+            self.logger.info ('retrieving {} urls'.format (len (urls)))
+            result = []
+            for u in urls:
+                c = SinglePageController (u, self.output, self.service,
+                        self.behavior, self.logger, self.settings)
+                result.append (c.run ())
+
+            have.update (urls)
+            urls = set ()
+            for r in result:
+                ret['stats'] += r['stats']
+                urls.update (map (removeFragment, r['links']))
+            urls.difference_update (have)
+
+            urls = self.recursionPolicy (urls)
+        # everything in ret must be serializeable
+        ret['stats'] = dict (ret['stats'])
         return ret
 

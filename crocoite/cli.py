@@ -25,7 +25,8 @@ Command line interface
 import logging, argparse, json, sys
 
 from . import behavior
-from .controller import SinglePageController, defaultSettings, ControllerSettings
+from .controller import RecursiveController, defaultSettings, \
+        ControllerSettings, DepthLimit, PrefixLimit
 
 def stateCallback (data):
     result = data['result']
@@ -35,6 +36,7 @@ def stateCallback (data):
 def main ():
     parser = argparse.ArgumentParser(description='Save website to WARC using Google Chrome.')
     parser.add_argument('--browser', help='DevTools URL', metavar='URL')
+    parser.add_argument('--recursive', help='Follow links recursively')
     parser.add_argument('--timeout', default=10, type=int, help='Maximum time for archival', metavar='SEC')
     parser.add_argument('--idle-timeout', default=2, type=int, help='Maximum idle seconds (i.e. no requests)', dest='idleTimeout', metavar='SEC')
     parser.add_argument('--log-buffer', default=defaultSettings.logBuffer, type=int, dest='logBuffer', metavar='LINES')
@@ -52,8 +54,18 @@ def main ():
 
     # prepare args for function
     distributed = args.distributed
+    if args.recursive is None:
+        recursionPolicy = DepthLimit (0)
+    elif args.recursive.isdigit ():
+        recursionPolicy = DepthLimit (int (args.recursive))
+    elif args.recursive == 'prefix':
+        recursionPolicy = PrefixLimit (args.url)
+    else:
+        parser.error ('Invalid argument for --recursive')
 
     if distributed:
+        assert args.recursive is None, "Distributed crawls cannot be recursive right now, sorry"
+
         from .task import archive
         settings = dict (maxBodySize=args.maxBodySize,
                 logBuffer=args.logBuffer, idleTimeout=args.idleTimeout,
@@ -67,7 +79,8 @@ def main ():
                 logBuffer=args.logBuffer, idleTimeout=args.idleTimeout,
                 timeout=args.timeout)
         with open (args.output, 'wb') as fd:
-            controller = SinglePageController (args.url, fd, settings=settings)
+            controller = RecursiveController (args.url, fd, settings=settings,
+                    recursionPolicy=recursionPolicy)
             r = controller.run ()
     json.dump (r, sys.stdout)
 
