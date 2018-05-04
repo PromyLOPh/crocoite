@@ -128,7 +128,7 @@ def celeryWorker (bot, q):
             break
         action, trigger, args = item
         if action == 'a':
-            handle = task.archive.delay (**args)
+            handle = task.controller.delay (**args)
             j = jobs[handle.id] = {'handle': handle, 'trigger': trigger, 'args': args}
 
             # pretty-print a few selected args
@@ -136,6 +136,8 @@ def celeryWorker (bot, q):
                     'idleTimeout': prettyTimeDelta (args['settings']['idleTimeout']),
                     'timeout': prettyTimeDelta (args['settings']['timeout']),
                     'maxBodySize': prettyBytes (args['settings']['maxBodySize']),
+                    'recursive': args['recursive'],
+                    'concurrency': args['concurrency'],
                     }
             strargs = ', '.join (map (lambda x: '{}={}'.format (*x), showargs.items ()))
             bot.msg (trigger.sender, '{}: {} has been queued as {} with {}'.format (trigger.nick, args['url'], handle.id, strargs))
@@ -170,6 +172,8 @@ archiveparser = NonExitingArgumentParser (prog='a', add_help=False)
 archiveparser.add_argument('--timeout', default=1*60*60, type=int, help='Maximum time for archival', metavar='SEC', choices=[60, 1*60*60, 2*60*60])
 archiveparser.add_argument('--idle-timeout', default=10, type=int, help='Maximum idle seconds (i.e. no requests)', dest='idleTimeout', metavar='SEC', choices=[1, 10, 20, 30, 60])
 archiveparser.add_argument('--max-body-size', default=defaultSettings.maxBodySize, type=int, dest='maxBodySize', help='Max body size', metavar='BYTES', choices=[1*1024*1024, 10*1024*1024, defaultSettings.maxBodySize, 100*1024*1024])
+archiveparser.add_argument('--concurrency', default=1, type=int, help='Parallel workers for this job', choices=range (9))
+archiveparser.add_argument('--recursive', help='Enable recursion', choices=['0', '1', '2', '3', 'prefix'])
 archiveparser.add_argument('url', help='Website URL', type=isValidUrl)
 
 @nickname_commands ('a', 'archive')
@@ -195,7 +199,8 @@ def archive (bot, trigger):
             timeout=args.timeout)
     args = dict (url=args.url,
             enabledBehaviorNames=list (behavior.availableNames-blacklistedBehavior),
-            settings=settings)
+            settings=settings, recursive=args.recursive,
+            concurrency=args.concurrency)
     q = bot.memory['crocoite']['q']
     q.put_nowait (('a', trigger, args))
 
