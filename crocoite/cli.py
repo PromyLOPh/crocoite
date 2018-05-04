@@ -29,6 +29,16 @@ from .controller import RecursiveController, defaultSettings, \
         ControllerSettings, DepthLimit, PrefixLimit
 from .browser import NullService, ChromeService
 
+def parseRecursive (recursive, url):
+    if recursive is None:
+        return DepthLimit (0)
+    elif recursive.isdigit ():
+        return DepthLimit (int (recursive))
+    elif recursive == 'prefix':
+        return PrefixLimit (url)
+    else:
+        raise ValueError ('Unsupported')
+
 def main ():
     parser = argparse.ArgumentParser(description='Save website to WARC using Google Chrome.')
     parser.add_argument('--browser', help='DevTools URL', metavar='URL')
@@ -63,13 +73,9 @@ def main ():
     else:
         logging.basicConfig (level=logging.INFO)
 
-        if args.recursive is None:
-            recursionPolicy = DepthLimit (0)
-        elif args.recursive.isdigit ():
-            recursionPolicy = DepthLimit (int (args.recursive))
-        elif args.recursive == 'prefix':
-            recursionPolicy = PrefixLimit (args.url)
-        else:
+        try:
+            recursionPolicy = parseRecursive (args.recursive, args.url)
+        except ValueError:
             parser.error ('Invalid argument for --recursive')
         service = ChromeService ()
         if args.browser:

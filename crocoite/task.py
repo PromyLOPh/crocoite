@@ -41,6 +41,7 @@ from celery.utils.log import get_task_logger
 from .browser import ChromeService
 from .controller import SinglePageController, ControllerSettings, RecursiveController, defaultSettings, DepthLimit, PrefixLimit
 from . import behavior
+from .cli import parseRecursive
 
 app = Celery ('crocoite.distributed')
 app.config_from_object('celeryconfig')
@@ -109,13 +110,7 @@ class DistributedRecursiveController (RecursiveController):
 def controller (self, url, settings, enabledBehaviorNames, recursive, concurrency):
     """ Recursive controller """
 
-    if recursive is None:
-        recursionPolicy = DepthLimit (0)
-    elif recursive.isdigit ():
-        recursionPolicy = DepthLimit (int (recursive))
-    elif recursive == 'prefix':
-        recursionPolicy = PrefixLimit (url)
-
+    recursionPolicy = parseRecursive (recursive, url)
     enabledBehavior = list (filter (lambda x: x.name in enabledBehaviorNames, behavior.available))
     settings = ControllerSettings (**settings)
     controller = DistributedRecursiveController (url, None, behavior=enabledBehavior,
