@@ -29,6 +29,10 @@ class ControllerSettings:
         self.idleTimeout = idleTimeout
         self.timeout = timeout
 
+    def toDict (self):
+        return dict (logBuffer=self.logBuffer, maxBodySize=self.maxBodySize,
+                idleTimeout=self.idleTimeout, timeout=self.timeout)
+
 defaultSettings = ControllerSettings ()
 
 import logging
@@ -186,6 +190,18 @@ class RecursiveController:
         self.logger = logger
         self.recursionPolicy = recursionPolicy
 
+    def fetch (self, urls):
+        """
+        Overrideable fetch action for URLs. Defaults to sequential
+        SinglePageController.
+        """
+        result = []
+        for u in urls:
+            c = SinglePageController (u, self.output, self.service,
+                    self.behavior, self.logger, self.settings)
+            result.append (c.run ())
+        return result
+
     def run (self):
         have = set ()
         urls = set ([self.url])
@@ -193,11 +209,7 @@ class RecursiveController:
 
         while urls:
             self.logger.info ('retrieving {} urls'.format (len (urls)))
-            result = []
-            for u in urls:
-                c = SinglePageController (u, self.output, self.service,
-                        self.behavior, self.logger, self.settings)
-                result.append (c.run ())
+            result = self.fetch (urls)
 
             have.update (urls)
             urls = set ()

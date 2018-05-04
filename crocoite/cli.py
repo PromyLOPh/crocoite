@@ -28,15 +28,11 @@ from . import behavior
 from .controller import RecursiveController, defaultSettings, \
         ControllerSettings, DepthLimit, PrefixLimit
 
-def stateCallback (data):
-    result = data['result']
-    if data['status'] == 'PROGRESS':
-        print (data['task_id'], result['step'])
-
 def main ():
     parser = argparse.ArgumentParser(description='Save website to WARC using Google Chrome.')
     parser.add_argument('--browser', help='DevTools URL', metavar='URL')
     parser.add_argument('--recursive', help='Follow links recursively')
+    parser.add_argument('--concurrency', '-j', type=int, default=1)
     parser.add_argument('--timeout', default=10, type=int, help='Maximum time for archival', metavar='SEC')
     parser.add_argument('--idle-timeout', default=2, type=int, help='Maximum idle seconds (i.e. no requests)', dest='idleTimeout', metavar='SEC')
     parser.add_argument('--log-buffer', default=defaultSettings.logBuffer, type=int, dest='logBuffer', metavar='LINES')
@@ -52,29 +48,28 @@ def main ():
 
     args = parser.parse_args ()
 
-    # prepare args for function
-    distributed = args.distributed
-    if args.recursive is None:
-        recursionPolicy = DepthLimit (0)
-    elif args.recursive.isdigit ():
-        recursionPolicy = DepthLimit (int (args.recursive))
-    elif args.recursive == 'prefix':
-        recursionPolicy = PrefixLimit (args.url)
-    else:
-        parser.error ('Invalid argument for --recursive')
-
-    if distributed:
-        assert args.recursive is None, "Distributed crawls cannot be recursive right now, sorry"
-
-        from .task import archive
+    if args.distributed:
+        if args.browser:
+            parser.error ('--browser is not supported for distributed jobs')
+        from . import task
         settings = dict (maxBodySize=args.maxBodySize,
                 logBuffer=args.logBuffer, idleTimeout=args.idleTimeout,
                 timeout=args.timeout)
-        result = archive.delay (url=args.url, settings=settings,
-                enabledBehaviorNames=args.enabledBehaviorNames)
-        r = result.get (on_message=stateCallback)
+        result = task.controller.delay (url=args.url, settings=settings,
+                enabledBehaviorNames=args.enabledBehaviorNames,
+                recursive=args.recursive, concurrency=args.concurrency)
+        r = result.get ()
     else:
         logging.basicConfig (level=logging.INFO)
+
+        if args.recursive is None:
+            recursionPolicy = DepthLimit (0)
+        elif args.recursive.isdigit ():
+            recursionPolicy = DepthLimit (int (args.recursive))
+        elif args.recursive == 'prefix':
+            recursionPolicy = PrefixLimit (args.url)
+        else:
+            parser.error ('Invalid argument for --recursive')
         settings = ControllerSettings (maxBodySize=args.maxBodySize,
                 logBuffer=args.logBuffer, idleTimeout=args.idleTimeout,
                 timeout=args.timeout)
