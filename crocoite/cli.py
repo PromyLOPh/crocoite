@@ -27,6 +27,7 @@ import logging, argparse, json, sys
 from . import behavior
 from .controller import RecursiveController, defaultSettings, \
         ControllerSettings, DepthLimit, PrefixLimit
+from .browser import NullService, ChromeService
 
 def main ():
     parser = argparse.ArgumentParser(description='Save website to WARC using Google Chrome.')
@@ -70,12 +71,15 @@ def main ():
             recursionPolicy = PrefixLimit (args.url)
         else:
             parser.error ('Invalid argument for --recursive')
+        service = ChromeService ()
+        if args.browser:
+            service = NullService (args.browser)
         settings = ControllerSettings (maxBodySize=args.maxBodySize,
                 logBuffer=args.logBuffer, idleTimeout=args.idleTimeout,
                 timeout=args.timeout)
         with open (args.output, 'wb') as fd:
             controller = RecursiveController (args.url, fd, settings=settings,
-                    recursionPolicy=recursionPolicy)
+                    recursionPolicy=recursionPolicy, service=service)
             r = controller.run ()
     json.dump (r, sys.stdout)
 

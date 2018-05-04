@@ -409,7 +409,7 @@ class NullService:
         self.url = url
 
     def __enter__ (self):
-        return url
+        return self.url
 
     def __exit__ (self, *exc):
         pass
