@@ -27,7 +27,7 @@ Usage
 
 One-shot commandline interface and pywb_ playback::
 
-    crocoite-standalone http://example.com/ example.com.warc.gz
+    crocoite-grab --output example.com.warc.gz http://example.com/
     rm -rf collections && wb-manager init test && wb-manager add test example.com.warc.gz
     wayback &
     $BROWSER http://localhost:8080
@@ -79,11 +79,11 @@ Configure using celeryconfig.py
 
 Start a Celery worker::
 
-    celery -A crocoite.task worker --loglevel=info
+    celery -A crocoite.task worker -Q crocoite.archive,crocoite.controller --loglevel=info
 
 Then queue archive job::
 
-    crocoite-standalone --distributed http://example.com ''
+    crocoite-grab --distributed http://example.com
 
 The worker will create a temporary file named according to ``warc_filename`` in
 ``/tmp`` while archiving and move it to ``/tmp/finished`` when done.
@@ -108,7 +108,7 @@ Configure sopel_ (``~/.sopel/default.cfg``) to use the plugin located in
 Then start it by running ``sopel``. The bot must be addressed directly (i.e.
 ``chromebot: <command>``). The following commands are currently supported:
 
-ao <url>
+a <url>
     Archives <url> and all of its resources (images, css, …). A unique UID
     (UUID) is assigned to each job.
 s <uuid>
