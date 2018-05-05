@@ -67,7 +67,7 @@ class SinglePageController:
         self.logger = logger
 
     def run (self):
-        ret = {'stats': None, 'links': None}
+        ret = {'stats': None, 'links': []}
 
         with self.service as browser:
             browser = pychrome.Browser (url=browser)
