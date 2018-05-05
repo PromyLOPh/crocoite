@@ -17,7 +17,9 @@ setup(
     ],
     entry_points={
     'console_scripts': [
-            'crocoite-standalone = crocoite.cli:main',
+            'crocoite-grab = crocoite.cli:main',
+            'crocoite-merge-warc = crocoite.tools:mergeWarc',
+            'crocoite-extract-screenshot = crocoite.tools:extractScreenshot',
             ],
     },
     package_data={
