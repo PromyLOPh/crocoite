@@ -57,6 +57,12 @@ const sites = Object.freeze ([
 			/* expand comment thread */
 			{s: 'ytd-comment-thread-renderer div.more-button', flags: selectorFlag.none},
 			],
+	}, {
+		hostname: /^www\.patreon\.com$/i,
+		selector: [
+			/* load more content */
+			{s: 'div[display=flex] div[display=block] button[color=gray][type=button]', flags: selectorFlag.multi},
+			],
 	}
 	]);
 
