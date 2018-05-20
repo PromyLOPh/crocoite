@@ -62,6 +62,10 @@ const sites = Object.freeze ([
 		selector: [
 			/* load more content */
 			{s: 'div[display=flex] div[display=block] button[color=gray][type=button]', flags: selectorFlag.multi},
+			/* load more comments */
+			{s: 'div.stackable[display=block] > div  > div  > a[color=dark][target=_self]', flags: selectorFlag.none},
+			/* load more replies */
+			{s: 'div > a[scale="0"][color=blue][size="1"]', flags: selectorFlag.none},
 			],
 	}
 	]);
