@@ -1,6 +1,7 @@
 /*	Extract links from a page
  */
 
+(function () {
 /* --- copy&paste from click.js --- */
 /*	Element is visible if itself and all of its parents are
  */
@@ -31,4 +32,5 @@ for (let i=0; i < x.length; i++) {
 		ret.push (x[i].href);
 	}
 }
-ret; /* immediately return results, for use with Runtime.evaluate() */
+return ret; /* immediately return results, for use with Runtime.evaluate() */
+})();

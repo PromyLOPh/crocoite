@@ -256,7 +256,8 @@ class ExtractLinks (Behavior):
     def onfinish (self):
         tab = self.loader.tab
         self.useScript (self.script)
-        self.links = list (set (tab.Runtime.evaluate (expression=self.script, returnByValue=True)['result']['value']))
+        result = tab.Runtime.evaluate (expression=self.script, returnByValue=True)
+        self.links = list (set (result['result']['value']))
 
 # available behavior scripts. Order matters, move those modifying the page
 # towards the end of available
