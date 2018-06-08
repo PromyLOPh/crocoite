@@ -338,7 +338,7 @@ class AccountingSiteLoader (SiteLoader):
 
         self.stats['requests'] += 1
 
-import subprocess
+import subprocess, os, time
 from tempfile import mkdtemp
 import socket, shutil
 
@@ -349,31 +349,15 @@ class ChromeService:
     ready.
     """
 
-    def __init__ (self, binary='google-chrome-stable', host='localhost', port=9222, windowSize=(1920, 1080)):
+    def __init__ (self, binary='google-chrome-stable', windowSize=(1920, 1080)):
         self.binary = binary
-        self.host = host
-        self.port = port
         self.windowSize = windowSize
         self.p = None
 
     def __enter__ (self):
         assert self.p is None
-
-        port = self.port
-        while True:
-            s = socket.socket ()
-            s.setsockopt (socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            try:
-                s.bind ((self.host, port))
-                break
-            except OSError:
-                # try different port
-                if port < 65000:
-                    port += 1
-                else:
-                    raise
-        s.listen (10)
         self.userDataDir = mkdtemp ()
+        print (self.userDataDir)
         args = [self.binary,
                 '--window-size={},{}'.format (*self.windowSize),
                 '--user-data-dir={}'.format (self.userDataDir), # use temporory user dir
@@ -387,16 +371,28 @@ class ChromeService:
                 '--disable-gpu',
                 '--hide-scrollbars', # hide scrollbars on screenshots
                 '--mute-audio', # don’t play any audio
-                '--remote-debugging-socket-fd={}'.format (s.fileno ()),
+                '--remote-debugging-port=0', # pick a port. XXX: we may want to use --remote-debugging-pipe instead
                 '--homepage=about:blank',
                 'about:blank']
         # start new session, so ^C does not affect subprocess
-        self.p = subprocess.Popen (args, pass_fds=[s.fileno()], start_new_session=True,
+        self.p = subprocess.Popen (args, start_new_session=True,
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL)
-        s.close ()
+        port = None
+        # chrome writes its current active devtools port to a file. due to the
+        # sleep() this is rather ugly, but should work with all versions of the
+        # browser.
+        for i in range (100):
+            try:
+                with open (os.path.join (self.userDataDir, 'DevToolsActivePort'), 'r') as fd:
+                    port = int (fd.readline ().strip ())
+                    break
+            except FileNotFoundError:
+                time.sleep (0.2)
+        if port is None:
+            raise Exception ('Chrome died on us.')
 
-        return 'http://{}:{}'.format (self.host, port)
+        return 'http://localhost:{}'.format (port)
 
     def __exit__ (self, *exc):
         self.p.terminate ()
