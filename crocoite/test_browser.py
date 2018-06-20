@@ -21,8 +21,9 @@
 import pytest
 from operator import itemgetter
 from http.server import BaseHTTPRequestHandler
+from pychrome.exceptions import TimeoutException
 
-from .browser import Item, SiteLoader, ChromeService
+from .browser import Item, SiteLoader, ChromeService, NullService, BrowserCrashed
 
 class TItem (Item):
     """ This should be as close to Item as possible """
@@ -104,8 +105,9 @@ def http ():
 @pytest.fixture
 def loader (http):
     def f (path):
-        assert path.startswith ('/')
-        return SiteLoader (browser, 'http://localhost:8000{}'.format (path))
+        if path.startswith ('/'):
+            path = 'http://localhost:8000{}'.format (path)
+        return SiteLoader (browser, path)
     print ('loader setup')
     with ChromeService () as browser:
         yield f
@@ -127,6 +129,7 @@ def itemsLoaded (l, items):
                 assert False, 'url {} not supposed to be fetched'.format (item.url)
             assert item.body[0] == golden.body[0]
             assert item.response['status'] == golden.response['status']
+            assert item.statusText == BaseHTTPRequestHandler.responses.get (item.response['status'])[0]
             for k, v in golden.responseHeaders:
                 actual = list (map (itemgetter (1), filter (lambda x: x[0] == k, item.responseHeaders)))
                 assert v in actual
@@ -174,4 +177,29 @@ def test_html (loader):
     literalItem (loader, testItemMap['/html'], [testItemMap['/image'], testItemMap['/nonexistent']])
     # make sure alerts are dismissed correctly (image won’t load otherwise)
     literalItem (loader, testItemMap['/html/alert'], [testItemMap['/image']])
+
+def test_crash (loader):
+    with loader ('/html') as l:
+        l.start ()
+        try:
+            l.tab.Page.crash (_timeout=1)
+        except TimeoutException:
+            pass
+        q = l.queue
+        assert isinstance (q.popleft (), BrowserCrashed)
+
+def test_invalidurl (loader):
+    url = 'http://nonexistent.example/'
+    with loader (url) as l:
+        l.start ()
+        q = l.queue
+        it = q.popleft ()
+        assert it.failed
+
+def test_nullservice ():
+    """ Null service returns the url as is """
+
+    url = 'http://localhost:12345'
+    with NullService (url) as u:
+        assert u == url
 
