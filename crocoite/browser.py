@@ -25,6 +25,10 @@ Chrome browser interactions.
 import logging
 from urllib.parse import urlsplit
 from base64 import b64decode
+from http.server import BaseHTTPRequestHandler
+from collections import deque
+from threading import Event
+
 import pychrome
 
 class Item:
@@ -37,6 +41,8 @@ class Item:
         self.chromeRequest = None
         self.chromeResponse = None
         self.chromeFinished = None
+        self.isRedirect = False
+        self.failed = False
 
     def __repr__ (self):
         return '<Item {}>'.format (self.request['url'])
@@ -47,6 +53,7 @@ class Item:
 
     @property
     def response (self):
+        assert not self.failed, "you must not access response if failed is set"
         return self.chromeResponse['response']
 
     @property
@@ -73,7 +80,7 @@ class Item:
     def body (self):
         """ Return response body or None """
         try:
-            body = self.tab.Network.getResponseBody (requestId=self.id, _timeout=60)
+            body = self.tab.Network.getResponseBody (requestId=self.id, _timeout=10)
             rawBody = body['body']
             base64Encoded = body['base64Encoded']
             if base64Encoded:
@@ -93,7 +100,7 @@ class Item:
             return postData.encode ('utf8'), False
         elif req.get ('hasPostData', False):
             try:
-                return b64decode (self.tab.Network.getRequestPostData (requestId=self.id, _timeout=60)['postData']), True
+                return b64decode (self.tab.Network.getRequestPostData (requestId=self.id, _timeout=10)['postData']), True
             except (pychrome.exceptions.CallMethodException, pychrome.exceptions.TimeoutException):
                 raise ValueError ('Cannot fetch request body')
         return None, False
@@ -107,6 +114,16 @@ class Item:
     @property
     def responseHeaders (self):
         return self._unfoldHeaders (self.response['headers'])
+
+    @property
+    def statusText (self):
+        text = self.response.get ('statusText')
+        if text:
+            return text
+        text = BaseHTTPRequestHandler.responses.get (self.response['status'])
+        if text:
+            return text[0]
+        return 'No status text available'
 
     @staticmethod
     def _unfoldHeaders (headers):
@@ -129,9 +146,20 @@ class Item:
     def setFinished (self, finished):
         self.chromeFinished = finished
 
+class BrowserCrashed (Exception):
+    pass
+
 class SiteLoader:
     """
     Load site in Chrome and monitor network requests
+
+    Chrome’s raw devtools events are preprocessed here (asynchronously, in a
+    different thread, spawned by pychrome) and put into a deque. There
+    are two reasons for this: First of all, it makes consumer exception
+    handling alot easier (no need to propagate them to the main thread). And
+    secondly, browser crashes must be handled before everything else, as they
+    result in a loss of communication with the browser itself (i.e. we can’t
+    fetch a resource’s body any more).
 
     XXX: track popup windows/new tabs and close them
     """
@@ -140,22 +168,22 @@ class SiteLoader:
 
     def __init__ (self, browser, url, logger=logging.getLogger(__name__)):
         self.requests = {}
-        self.browser = browser
+        self.browser = pychrome.Browser (url=browser)
         self.url = url
         self.logger = logger
-
-        self.tab = browser.new_tab()
+        self.queue = deque ()
+        self.notify = Event ()
 
     def __enter__ (self):
-        tab = self.tab
+        tab = self.tab = self.browser.new_tab()
         # setup callbacks
         tab.Network.requestWillBeSent = self._requestWillBeSent
         tab.Network.responseReceived = self._responseReceived
         tab.Network.loadingFinished = self._loadingFinished
         tab.Network.loadingFailed = self._loadingFailed
         tab.Log.entryAdded = self._entryAdded
-        #tab.Page.loadEventFired = loadEventFired
         tab.Page.javascriptDialogOpening = self._javascriptDialogOpening
+        tab.Inspector.targetCrashed = self._targetCrashed
 
         # start the tab
         tab.start()
@@ -164,66 +192,37 @@ class SiteLoader:
         tab.Log.enable ()
         tab.Network.enable()
         tab.Page.enable ()
+        tab.Inspector.enable ()
         tab.Network.clearBrowserCache ()
         if tab.Network.canClearBrowserCookies ()['result']:
             tab.Network.clearBrowserCookies ()
 
         return self
 
-    def __len__ (self):
-        return len (self.requests)
-
-    def start (self):
-        self.tab.Page.navigate(url=self.url)
-
-    def wait (self, timeout=1):
-        self.tab.wait (timeout)
-
-    def waitIdle (self, idleTimeout=1, maxTimeout=60):
-        step = 0
-        for i in range (0, maxTimeout):
-            self.wait (1)
-            if len (self) == 0:
-                step += 1
-                if step > idleTimeout:
-                    break
-            else:
-                step = 0
-
-    def stop (self):
-        """
-        Stop loading site
-
-        XXX: stop executing scripts
-        """
-
-        tab = self.tab
-
-        tab.Page.stopLoading ()
-        tab.Network.disable ()
-        tab.Page.disable ()
-        tab.Log.disable ()
-        # XXX: we can’t drain the event queue directly, so insert (yet another) wait
-        tab.wait (1)
-        tab.Network.requestWillBeSent = None
-        tab.Network.responseReceived = None
-        tab.Network.loadingFinished = None
-        tab.Network.loadingFailed = None
-        tab.Page.loadEventFired = None
-        tab.Page.javascriptDialogOpening = None
-        tab.Log.entryAdded = None
-
     def __exit__ (self, exc_type, exc_value, traceback):
+        self.tab.Page.stopLoading ()
         self.tab.stop ()
         self.browser.close_tab(self.tab)
         return False
 
-    # overrideable callbacks
-    def loadingFinished (self, item, redirect=False):
-        pass
+    def __len__ (self):
+        return len (self.requests)
 
-    def loadingFailed (self, item):
-        pass
+    def __iter__ (self):
+        return iter (self.queue)
+
+    def start (self):
+        self.tab.Page.navigate(url=self.url)
+
+    # use event to signal presence of new items. This way the controller
+    # can wait for them without polling.
+    def _append (self, item):
+        self.queue.append (item)
+        self.notify.set ()
+
+    def _appendleft (self, item):
+        self.queue.appendleft (item)
+        self.notify.set ()
 
     # internal chrome callbacks
     def _requestWillBeSent (self, **kwargs):
@@ -244,8 +243,9 @@ class SiteLoader:
                 item.setResponse (resp)
                 resp = {'requestId': reqId, 'encodedDataLength': 0, 'timestamp': kwargs['timestamp']}
                 item.setFinished (resp)
-                self.loadingFinished (item, redirect=True)
+                item.isRedirect = True
                 self.logger.info ('redirected request {} has url {}'.format (reqId, req['url']))
+                self._append (item)
             else:
                 self.logger.warning ('request {} already exists, overwriting.'.format (reqId))
 
@@ -284,13 +284,14 @@ class SiteLoader:
         if url.scheme in self.allowedSchemes:
             self.logger.info ('finished {} {}'.format (reqId, req['url']))
             item.setFinished (kwargs)
-            self.loadingFinished (item)
+            self._append (item)
 
     def _loadingFailed (self, **kwargs):
         reqId = kwargs['requestId']
         self.logger.warning ('failed {} {}'.format (reqId, kwargs['errorText'], kwargs.get ('blockedReason')))
         item = self.requests.pop (reqId, None)
-        self.loadingFailed (item)
+        item.failed = True
+        self._append (item)
 
     def _entryAdded (self, **kwargs):
         """ Log entry added """
@@ -312,31 +313,10 @@ class SiteLoader:
         else:
             self.logger.warning ('unknown javascript dialog type {}'.format (t))
 
-class AccountingSiteLoader (SiteLoader):
-    """
-    SiteLoader that keeps basic statistics about retrieved pages.
-    """
-
-    def __init__ (self, browser, url, logger=logging.getLogger(__name__)):
-        super ().__init__ (browser, url, logger)
-
-        self.stats = {'requests': 0, 'finished': 0, 'failed': 0, 'bytesRcv': 0}
-
-    def loadingFinished (self, item, redirect=False):
-        super ().loadingFinished (item, redirect)
-
-        self.stats['finished'] += 1
-        self.stats['bytesRcv'] += item.encodedDataLength
-
-    def loadingFailed (self, item):
-        super ().loadingFailed (item)
-
-        self.stats['failed'] += 1
-
-    def _requestWillBeSent (self, **kwargs):
-        super ()._requestWillBeSent (**kwargs)
-
-        self.stats['requests'] += 1
+    def _targetCrashed (self, **kwargs):
+        self.logger.error ('browser crashed')
+        # priority message
+        self._appendleft (BrowserCrashed ())
 
 import subprocess, os, time
 from tempfile import mkdtemp
@@ -357,7 +337,6 @@ class ChromeService:
     def __enter__ (self):
         assert self.p is None
         self.userDataDir = mkdtemp ()
-        print (self.userDataDir)
         args = [self.binary,
                 '--window-size={},{}'.format (*self.windowSize),
                 '--user-data-dir={}'.format (self.userDataDir), # use temporory user dir
@@ -413,69 +392,65 @@ class NullService:
 ### tests ###
 
 import unittest, time
-from http.server import BaseHTTPRequestHandler
+from operator import itemgetter
+
+class TestItem (Item):
+    """ This should be as close to Item as possible """
+
+    base = 'http://localhost:8000/'
+
+    def __init__ (self, path, status, headers, bodyReceive, bodySend=None):
+        super ().__init__ (tab=None)
+        self.chromeResponse = {'response': {'headers': headers, 'status': status, 'url': self.base + path}}
+        self._body = bodyReceive, False
+        self.bodySend = bodyReceive if not bodySend else bodySend
+
+    @property
+    def body (self):
+        return self._body
+
+testItems = [
+    TestItem ('binary', 200, {'Content-Type': 'application/octet-stream'}, b'\x00\x01\x02'),
+    TestItem ('attachment', 200, 
+            {'Content-Type': 'text/plain; charset=utf-8',
+            'Content-Disposition': 'attachment; filename="attachment.txt"',
+            },
+            'This is a simple text file with umlauts. ÄÖU.'.encode ('utf8')),
+    TestItem ('encoding/utf8', 200, {'Content-Type': 'text/plain; charset=utf-8'},
+            'This is a test, äöü μνψκ ¥¥¥¿ýý¡'.encode ('utf8')),
+    TestItem ('encoding/iso88591', 200, {'Content-Type': 'text/plain; charset=ISO-8859-1'},
+            'This is a test, äöü.'.encode ('utf8'),
+            'This is a test, äöü.'.encode ('ISO-8859-1')),
+    TestItem ('encoding/latin1', 200, {'Content-Type': 'text/plain; charset=latin1'},
+            'This is a test, äöü.'.encode ('utf8'),
+            'This is a test, äöü.'.encode ('latin1')),
+    TestItem ('image', 200, {'Content-Type': 'image/png'},
+            # 1×1 png image
+            b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x00\x00\x00\x00:~\x9bU\x00\x00\x00\nIDAT\x08\x1dc\xf8\x0f\x00\x01\x01\x01\x006_g\x80\x00\x00\x00\x00IEND\xaeB`\x82'),
+    TestItem ('empty', 200, {}, b''),
+    TestItem ('redirect/301/empty', 301, {'Location': '/empty'}, b''),
+    TestItem ('redirect/301/redirect/301/empty', 301, {'Location': '/redirect/301/empty'}, b''),
+    TestItem ('nonexistent', 404, {}, b''),
+    TestItem ('html', 200, {'Content-Type': 'html'},
+            '<html><body><img src="/image"><img src="/nonexistent"></body></html>'.encode ('utf8')),
+    TestItem ('html/alert', 200, {'Content-Type': 'html'},
+            '<html><body><script>window.addEventListener("beforeunload", function (e) { e.returnValue = "bye?"; return e.returnValue; }); alert("stopping here"); if (confirm("are you sure?") || prompt ("42?")) { window.location = "/nonexistent"; }</script><img src="/image"></body></html>'.encode ('utf8')),
+    ]
+testItemMap = dict ([(item.parsedUrl.path, item) for item in testItems])
 
 class TestHTTPRequestHandler (BaseHTTPRequestHandler):
-    encodingTestString = {
-        'latin1': 'äöü',
-        'utf-8': 'äöü',
-        'ISO-8859-1': 'äöü',
-        }
-    binaryTestData = b'\x00\x01\x02'
-    # 1×1 pixel PNG
-    imageTestData = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x00\x00\x00\x00:~\x9bU\x00\x00\x00\nIDAT\x08\x1dc\xf8\x0f\x00\x01\x01\x01\x006_g\x80\x00\x00\x00\x00IEND\xaeB`\x82'
-    htmlTestData = '<html><body><img src="/image"><img src="/nonexistent"></body></html>'
-    alertData = '<html><body><script>window.addEventListener("beforeunload", function (e) { e.returnValue = "bye?"; return e.returnValue; }); alert("stopping here"); if (confirm("are you sure?") || prompt ("42?")) { window.location = "/nonexistent"; }</script><img src="/image"></body></html>'
-
     def do_GET(self):
-        path = self.path
-        if path.startswith ('/redirect/301'):
-            self.send_response(301)
-            self.send_header ('Location', path[13:])
+        item = testItemMap.get (self.path)
+        if item:
+            self.send_response (item.response['status'])
+            for k, v in item.response['headers'].items ():
+                self.send_header (k, v)
+            body = item.bodySend
+            self.send_header ('Content-Length', len (body))
             self.end_headers()
-        elif path == '/empty':
-            self.send_response (200)
-            self.end_headers ()
-        elif path.startswith ('/encoding'):
-            # send text data with different encodings
-            _, _, encoding = path.split ('/', 3)
-            self.send_response (200)
-            self.send_header ('Content-Type', 'text/plain; charset={}'.format (encoding))
-            self.end_headers ()
-            self.wfile.write (self.encodingTestString[encoding].encode (encoding))
-        elif path == '/binary':
-            # send binary data
-            self.send_response (200)
-            self.send_header ('Content-Type', 'application/octet-stream')
-            self.send_header ('Content-Length', len (self.binaryTestData))
-            self.end_headers ()
-            self.wfile.write (self.binaryTestData)
-        elif path == '/image':
-            # send binary data
-            self.send_response (200)
-            self.send_header ('Content-Type', 'image/png')
-            self.end_headers ()
-            self.wfile.write (self.imageTestData)
-        elif path == '/attachment':
-            self.send_response (200)
-            self.send_header ('Content-Type', 'text/plain; charset=utf-8')
-            self.send_header ('Content-Disposition', 'attachment; filename="attachment.txt"')
-            self.end_headers ()
-            self.wfile.write (self.encodingTestString['utf-8'].encode ('utf-8'))
-        elif path == '/html':
-            self.send_response (200)
-            self.send_header ('Content-Type', 'text/html; charset=utf-8')
-            self.end_headers ()
-            self.wfile.write (self.htmlTestData.encode ('utf-8'))
-        elif path == '/alert':
-            self.send_response (200)
-            self.send_header ('Content-Type', 'text/html; charset=utf-8')
-            self.end_headers ()
-            self.wfile.write (self.alertData.encode ('utf-8'))
-        else:
-            self.send_response (404)
-            self.end_headers ()
-
+            self.wfile.write (body)
+        return
+            
     def log_message (self, format, *args):
         pass
 
@@ -485,144 +460,82 @@ def startServer ():
     httpd = http.server.HTTPServer (("localhost", PORT), TestHTTPRequestHandler)
     httpd.serve_forever()
 
-class TestSiteLoaderAdapter (SiteLoader):
-    def __init__ (self, browser, url):
-        SiteLoader.__init__ (self, browser, url)
-        self.finished = []
-
-    def loadingFinished (self, item, redirect=False):
-        self.finished.append (item)
-
 class TestSiteLoader (unittest.TestCase):
     def setUp (self):
         from multiprocessing import Process
         self.server = Process (target=startServer)
         self.server.start ()
-        self.baseurl = 'http://localhost:8000/'
+        self.baseurl = 'http://localhost:8000'
         self.service = ChromeService ()
-        browserUrl = self.service.__enter__ ()
-        self.browser = pychrome.Browser(url=browserUrl)
+        self.browser = self.service.__enter__ ()
 
     def buildAdapter (self, path):
-        return TestSiteLoaderAdapter (self.browser, '{}{}'.format (self.baseurl, path))
+        self.assertTrue (path.startswith ('/'))
+        return SiteLoader (self.browser, '{}{}'.format (self.baseurl, path))
 
-    def assertUrls (self, l, expect):
-        urls = set (map (lambda x: x.parsedUrl.path, l.finished))
-        expect = set (expect)
-        self.assertEqual (urls, expect)
-        
-    def test_wait (self):
-        waittime = 2
-        with self.buildAdapter ('empty') as l:
+    def assertItems (self, l, items):
+        items = dict ([(i.parsedUrl.path, i) for i in items])
+        timeout = 5
+        while True:
+            if not l.notify.wait (timeout) and len (items) > 0:
+                self.fail ('timeout')
+            if len (l.queue) > 0:
+                item = l.queue.popleft ()
+                if isinstance (item, Exception):
+                    raise item
+                self.assertIsNot (item.chromeResponse, None, msg='url={}'.format (item.request['url']))
+                golden = items.pop (item.parsedUrl.path)
+                if not golden:
+                    self.fail ('url {} not supposed to be fetched'.format (item.url))
+                self.assertEqual (item.body[0], golden.body[0], msg='body for url={}'.format (item.request['url']))
+                self.assertEqual (item.response['status'], golden.response['status'])
+                for k, v in golden.responseHeaders:
+                    actual = list (map (itemgetter (1), filter (lambda x: x[0] == k, item.responseHeaders)))
+                    self.assertIn (v, actual)
+
+            # check queue at least once
+            if not items:
+                break
+
+    def assertLiteralItem (self, item, deps=[]):
+        with self.buildAdapter (item.parsedUrl.path) as l:
             l.start ()
-            before = time.time ()
-            l.wait (waittime)
-            after = time.time ()
-            self.assertTrue ((after-before) >= waittime)
+            self.assertItems (l, [item] + deps)
 
     def test_empty (self):
-        with self.buildAdapter ('empty') as l:
-            l.start ()
-            l.waitIdle ()
-            self.assertEqual (len (l.finished), 1)
+        self.assertLiteralItem (testItemMap['/empty'])
 
-    def test_redirect301 (self):
-        with self.buildAdapter ('redirect/301/empty') as l:
-            l.start ()
-            l.waitIdle ()
-            self.assertEqual (len (l.finished), 2)
-            self.assertUrls (l, ['/redirect/301/empty', '/empty'])
-            for item in l.finished:
-                if item.parsedUrl.path == '/empty':
-                    self.assertEqual (item.response['status'], 200)
-                    self.assertEqual (item.body[0], b'')
-                elif item.parsedUrl.path == '/redirect/301/empty':
-                    self.assertEqual (item.response['status'], 301)
-                else:
-                    self.fail ('unknown url')
-
-    def test_redirect301multi (self):
-        with self.buildAdapter ('redirect/301/redirect/301/empty') as l:
-            l.start ()
-            l.waitIdle ()
-            self.assertEqual (len (l.finished), 3)
-            self.assertUrls (l, ['/redirect/301/redirect/301/empty', '/redirect/301/empty', '/empty'])
-            for item in l.finished:
-                if item.parsedUrl.path == '/empty':
-                    self.assertEqual (item.response['status'], 200)
-                    self.assertEqual (item.body[0], b'')
-                elif item.parsedUrl.path in {'/redirect/301/empty', \
-                        '/redirect/301/redirect/301/empty'}:
-                    self.assertEqual (item.response['status'], 301)
-                else:
-                    self.fail ('unknown url')
+    def test_redirect (self):
+        self.assertLiteralItem (testItemMap['/redirect/301/empty'], [testItemMap['/empty']])
+        # chained redirects
+        self.assertLiteralItem (testItemMap['/redirect/301/redirect/301/empty'], [testItemMap['/redirect/301/empty'], testItemMap['/empty']])
 
     def test_encoding (self):
         """ Text responses are transformed to UTF-8. Make sure this works
         correctly. """
-        for encoding, expected in TestHTTPRequestHandler.encodingTestString.items ():
-            with self.buildAdapter ('encoding/{}'.format (encoding)) as l:
-                l.start ()
-                l.waitIdle ()
-                self.assertEqual (len (l.finished), 1)
-                self.assertUrls (l, ['/encoding/{}'.format (encoding)])
-                self.assertEqual (l.finished[0].body[0], expected.encode ('utf8'))
+        for item in {testItemMap['/encoding/utf8'], testItemMap['/encoding/latin1'], testItemMap['/encoding/iso88591']}:
+            self.assertLiteralItem (item)
 
     def test_binary (self):
         """ Browser should ignore content it cannot display (i.e. octet-stream) """
-        with self.buildAdapter ('binary') as l:
+        with self.buildAdapter ('/binary') as l:
             l.start ()
-            l.waitIdle ()
-            self.assertEqual (len (l.finished), 0)
+            self.assertItems (l, [])
 
     def test_image (self):
         """ Images should be displayed inline """
-        with self.buildAdapter ('image') as l:
-            l.start ()
-            l.waitIdle ()
-            self.assertEqual (len (l.finished), 1)
-            self.assertUrls (l, ['/image'])
-            self.assertEqual (l.finished[0].body[0], TestHTTPRequestHandler.imageTestData)
+        self.assertLiteralItem (testItemMap['/image'])
 
     def test_attachment (self):
-        """ And downloads won’t work in headless mode """
-        with self.buildAdapter ('attachment') as l:
+        """ And downloads won’t work in headless mode, even if it’s just a text file """
+        with self.buildAdapter ('/attachment') as l:
             l.start ()
-            l.waitIdle ()
-            self.assertEqual (len (l.finished), 0)
+            self.assertItems (l, [])
 
     def test_html (self):
-        with self.buildAdapter ('html') as l:
-            l.start ()
-            l.waitIdle ()
-            self.assertEqual (len (l.finished), 3)
-            self.assertUrls (l, ['/html', '/image', '/nonexistent'])
-            for item in l.finished:
-                if item.parsedUrl.path == '/html':
-                    self.assertEqual (item.response['status'], 200)
-                    self.assertEqual (item.body[0], TestHTTPRequestHandler.htmlTestData.encode ('utf-8'))
-                elif item.parsedUrl.path == '/image':
-                    self.assertEqual (item.response['status'], 200)
-                    self.assertEqual (item.body[0], TestHTTPRequestHandler.imageTestData)
-                elif item.parsedUrl.path == '/nonexistent':
-                    self.assertEqual (item.response['status'], 404)
-                else:
-                    self.fail ('unknown url')
-
-    def test_alert (self):
-        with self.buildAdapter ('alert') as l:
-            l.start ()
-            l.waitIdle ()
-            self.assertUrls (l, ['/alert', '/image'])
-            for item in l.finished:
-                if item.parsedUrl.path == '/alert':
-                    self.assertEqual (item.response['status'], 200)
-                    self.assertEqual (item.body[0], TestHTTPRequestHandler.alertData.encode ('utf-8'))
-                elif item.parsedUrl.path == '/image':
-                    self.assertEqual (item.response['status'], 200)
-                    self.assertEqual (item.body[0], TestHTTPRequestHandler.imageTestData)
-                else:
-                    self.fail ('unknown url')
+        self.assertLiteralItem (testItemMap['/html'], [testItemMap['/image'], testItemMap['/nonexistent']])
+        # make sure alerts are dismissed correctly (image won’t load otherwise)
+        self.assertLiteralItem (testItemMap['/html/alert'], [testItemMap['/image']])
 
     def tearDown (self):
         self.service.__exit__ (None, None, None)

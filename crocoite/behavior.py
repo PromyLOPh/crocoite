@@ -22,20 +22,43 @@
 Generic and per-site behavior scripts
 """
 
-import logging
+import logging, time
 from io import BytesIO
 from urllib.parse import urlsplit
 import os.path
 import pkg_resources
 from base64 import b64decode
+from collections import OrderedDict
+
+from html5lib.serializer import HTMLSerializer
+from warcio.statusandheaders import StatusAndHeaders
+from pychrome.exceptions import TimeoutException
 
 from .util import randomString, packageUrl, getFormattedViewportMetrics
 from . import html
 from .html import StripAttributeFilter, StripTagFilter, ChromeTreeWalker
-from html5lib.serializer import HTMLSerializer
-from warcio.statusandheaders import StatusAndHeaders
+from .browser import SiteLoader
 
 logger = logging.getLogger(__name__)
+
+class Script:
+    """ A JavaScript resource """
+    def __init__ (self, path=None, encoding='utf-8'):
+        self.path = path
+        if path:
+            self.data = pkg_resources.resource_string (__name__, os.path.join ('data', path)).decode (encoding)
+
+    def __repr__ (self):
+        return '<Script {}>'.format (self.path)
+
+    def __str__ (self):
+        return self.data
+
+    @classmethod
+    def fromStr (cls, data):
+        s = Script ()
+        s.data = data
+        return s
 
 class Behavior:
     # unique behavior name
@@ -51,27 +74,20 @@ class Behavior:
         """
         return True
 
-    def loadScript (self, path, encoding='utf-8'):
-        return pkg_resources.resource_string (__name__, os.path.join ('data', path)).decode (encoding)
-
-    def useScript (self, script, encoding='utf-8'):
-        writer = self.loader.writer
-        record = writer.create_warc_record (packageUrl ('script'), 'metadata',
-                payload=BytesIO (script.encode (encoding)),
-                warc_headers_dict={'Content-Type': 'application/javascript; charset={}'.format (encoding)})
-        writer.write_record (record)
+    def __repr__ (self):
+        return '<Behavior {}>'.format (self.name)
 
     def onload (self):
         """ Before loading the page """
-        pass
+        yield from ()
 
     def onstop (self):
         """ Before page loading is stopped """
-        pass
+        yield from ()
 
     def onfinish (self):
         """ After the site has stopped loading """
-        pass
+        yield from ()
 
 class HostnameFilter:
     """ Limit behavior script to hostname """
@@ -90,15 +106,16 @@ class JsOnload (Behavior):
 
     def __init__ (self, loader):
         super ().__init__ (loader)
-        self.script = self.loadScript (self.scriptPath)
+        self.script = Script (self.scriptPath)
         self.scriptHandle = None
 
     def onload (self):
-        self.useScript (self.script)
-        self.scriptHandle = self.loader.tab.Page.addScriptToEvaluateOnNewDocument (source=self.script)['identifier']
+        yield self.script
+        self.scriptHandle = self.loader.tab.Page.addScriptToEvaluateOnNewDocument (source=str (self.script))['identifier']
 
     def onstop (self):
         self.loader.tab.Page.removeScriptToEvaluateOnNewDocument (identifier=self.scriptHandle)
+        yield from ()
 
 ### Generic scripts ###
 
@@ -110,15 +127,15 @@ class Scroll (JsOnload):
         super ().__init__ (loader)
         stopVarname = '__' + __package__ + '_stop__'
         newStopVarname = randomString ()
-        self.script = self.script.replace (stopVarname, newStopVarname)
+        self.script.data = self.script.data.replace (stopVarname, newStopVarname)
         self.stopVarname = newStopVarname
 
     def onstop (self):
         super ().onstop ()
         # removing the script does not stop it if running
-        script = '{} = true; window.scrollTo (0, 0);'.format (self.stopVarname)
-        self.useScript (script)
-        self.loader.tab.Runtime.evaluate (expression=script, returnByValue=True)
+        script = Script.fromStr ('{} = true; window.scrollTo (0, 0);'.format (self.stopVarname))
+        yield script
+        self.loader.tab.Runtime.evaluate (expression=str (script), returnByValue=True)
 
 class EmulateScreenMetrics (Behavior):
     name = 'emulateScreenMetrics'
@@ -147,9 +164,16 @@ class EmulateScreenMetrics (Behavior):
         for s in sizes:
             tab.Emulation.setDeviceMetricsOverride (**s)
             # give the browser time to re-eval page and start requests
-            l.wait (1)
+            time.sleep (1)
         # XXX: this seems to be broken, it does not clear the override
         #tab.Emulation.clearDeviceMetricsOverride ()
+        yield from ()
+
+class DomSnapshotEvent:
+    def __init__ (self, url, document, viewport):
+        self.url = url
+        self.document = document
+        self.viewport = viewport
 
 class DomSnapshot (Behavior):
     """
@@ -166,14 +190,13 @@ class DomSnapshot (Behavior):
 
     def __init__ (self, loader):
         super ().__init__ (loader)
-        self.script = self.loadScript ('canvas-snapshot.js')
+        self.script = Script ('canvas-snapshot.js')
 
     def onfinish (self):
         tab = self.loader.tab
-        writer = self.loader.writer
 
-        self.useScript (self.script)
-        tab.Runtime.evaluate (expression=self.script, returnByValue=True)
+        yield self.script
+        tab.Runtime.evaluate (expression=str (self.script), returnByValue=True)
 
         viewport = getFormattedViewportMetrics (tab)
         dom = tab.DOM.getDocument (depth=-1, pierce=True)
@@ -196,13 +219,12 @@ class DomSnapshot (Behavior):
                 disallowedAttributes = html.eventAttributes
                 stream = StripAttributeFilter (StripTagFilter (walker, disallowedTags), disallowedAttributes)
                 serializer = HTMLSerializer ()
-                httpHeaders = StatusAndHeaders('200 OK', {}, protocol='HTTP/1.1')
-                record = writer.create_warc_record (doc['documentURL'], 'response',
-                        payload=BytesIO (serializer.render (stream, 'utf-8')),
-                        http_headers=httpHeaders,
-                        warc_headers_dict={'X-DOM-Snapshot': str (True),
-                                'X-Chrome-Viewport': viewport})
-                writer.write_record (record)
+                yield DomSnapshotEvent (doc['documentURL'], serializer.render (stream, 'utf-8'), viewport)
+
+class ScreenshotEvent:
+    def __init__ (self, yoff, data):
+        self.yoff = yoff
+        self.data = data
 
 class Screenshot (Behavior):
     """
@@ -213,7 +235,6 @@ class Screenshot (Behavior):
 
     def onfinish (self):
         tab = self.loader.tab
-        writer = self.loader.writer
 
         # see https://github.com/GoogleChrome/puppeteer/blob/230be28b067b521f0577206899db01f0ca7fc0d2/examples/screenshots-longpage.js
         # Hardcoded max texture size of 16,384 (crbug.com/770769)
@@ -227,16 +248,17 @@ class Screenshot (Behavior):
             height = min (contentSize['height'] - yoff, maxDim)
             clip = {'x': 0, 'y': yoff, 'width': width, 'height': height, 'scale': 1}
             data = b64decode (tab.Page.captureScreenshot (format='png', clip=clip)['data'])
-            url = packageUrl ('screenshot-{}-{}.png'.format (0, yoff))
-            record = writer.create_warc_record (url, 'resource',
-                    payload=BytesIO (data), warc_headers_dict={'Content-Type': 'image/png'})
-            writer.write_record (record)
+            yield ScreenshotEvent (yoff, data)
 
 class Click (JsOnload):
     """ Generic link clicking """
 
     name = 'click'
     scriptPath = 'click.js'
+
+class ExtractLinksEvent:
+    def __init__ (self, links):
+        self.links = links
 
 class ExtractLinks (Behavior):
     """
@@ -250,19 +272,33 @@ class ExtractLinks (Behavior):
 
     def __init__ (self, loader):
         super ().__init__ (loader)
-        self.script = self.loadScript ('extract-links.js')
+        self.script = Script ('extract-links.js')
         self.links = None
 
     def onfinish (self):
         tab = self.loader.tab
-        self.useScript (self.script)
-        result = tab.Runtime.evaluate (expression=self.script, returnByValue=True)
-        self.links = list (set (result['result']['value']))
+        yield self.script
+        result = tab.Runtime.evaluate (expression=str (self.script), returnByValue=True)
+        yield ExtractLinksEvent (list (set (result['result']['value'])))
+
+class Crash (Behavior):
+    """ Crash the browser. For testing only. Obviously. """
+
+    name = 'crash'
+
+    def onstop (self):
+        try:
+            self.loader.tab.Page.crash (_timeout=1)
+        except TimeoutException:
+            pass
+        yield from ()
 
 # available behavior scripts. Order matters, move those modifying the page
 # towards the end of available
 generic = [Scroll, EmulateScreenMetrics, Click, ExtractLinks]
 perSite = []
 available = generic + perSite + [Screenshot, DomSnapshot]
-availableNames = set (map (lambda x: x.name, available))
+#available.append (Crash)
+# order matters, since behavior can modify the page (dom snapshots, for instance)
+availableMap = OrderedDict (map (lambda x: (x.name, x), available))
 

@@ -26,8 +26,9 @@ import logging, argparse, json, sys
 
 from . import behavior
 from .controller import RecursiveController, defaultSettings, \
-        ControllerSettings, DepthLimit, PrefixLimit
+        ControllerSettings, DepthLimit, PrefixLimit, StatsHandler
 from .browser import NullService, ChromeService
+from .warc import WarcHandler
 
 def parseRecursive (recursive, url):
     if recursive is None:
@@ -41,6 +42,7 @@ def parseRecursive (recursive, url):
 
 def main ():
     parser = argparse.ArgumentParser(description='Save website to WARC using Google Chrome.')
+    parser.add_argument('--debug', help='Enable debug messages', action='store_true')
     parser.add_argument('--browser', help='DevTools URL', metavar='URL')
     parser.add_argument('--recursive', help='Follow links recursively')
     parser.add_argument('--concurrency', '-j', type=int, default=1)
@@ -50,8 +52,8 @@ def main ():
     parser.add_argument('--max-body-size', default=defaultSettings.maxBodySize, type=int, dest='maxBodySize', help='Max body size', metavar='BYTES')
     parser.add_argument('--behavior', help='Comma-separated list of enabled behavior scripts',
             dest='enabledBehaviorNames',
-            default=list (behavior.availableNames),
-            choices=list (behavior.availableNames))
+            default=list (behavior.availableMap.keys ()),
+            choices=list (behavior.availableMap.keys ()))
     group = parser.add_mutually_exclusive_group (required=True)
     group.add_argument('--output', help='WARC filename', metavar='FILE')
     group.add_argument('--distributed', help='Use celery worker', action='store_true')
@@ -71,7 +73,8 @@ def main ():
                 recursive=args.recursive, concurrency=args.concurrency)
         r = result.get ()
     else:
-        logging.basicConfig (level=logging.INFO)
+        level = logging.DEBUG if args.debug else logging.INFO
+        logging.basicConfig (level=level)
 
         try:
             recursionPolicy = parseRecursive (args.recursive, args.url)
@@ -84,9 +87,13 @@ def main ():
                 logBuffer=args.logBuffer, idleTimeout=args.idleTimeout,
                 timeout=args.timeout)
         with open (args.output, 'wb') as fd:
+            handler = [StatsHandler (), WarcHandler (fd)]
+            b = list (map (lambda x: behavior.availableMap[x], args.enabledBehaviorNames))
             controller = RecursiveController (args.url, fd, settings=settings,
-                    recursionPolicy=recursionPolicy, service=service)
-            r = controller.run ()
+                    recursionPolicy=recursionPolicy, service=service,
+                    handler=handler, behavior=b)
+            controller.run ()
+            r = handler[0].stats
     json.dump (r, sys.stdout)
 
     return True

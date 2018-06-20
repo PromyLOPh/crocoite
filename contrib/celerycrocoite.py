@@ -88,10 +88,9 @@ def checkCompletedJobs (bot, jobs):
         if Identifier (channel) not in bot.channels:
             continue
         try:
-            result = handle.get (timeout=0.1)
-            stats = result['stats']
-            bot.msg (channel, '{}: {} ({}) finished. {} requests, {} failed, {} received.'.format (user, url,
-                    handle.id, stats['requests'], stats['failed'],
+            stats = handle.get (timeout=0.1)
+            bot.msg (channel, '{}: {} ({}) finished. {} crashed, {} requests, {} failed, {} received.'.format (user, url,
+                    handle.id, stats['crashed'], stats['requests'], stats['failed'],
                     prettyBytes (stats['bytesRcv'])))
             delete.add (handle.id)
         except celery.exceptions.TimeoutError:
@@ -198,7 +197,7 @@ def archive (bot, trigger):
             logBuffer=defaultSettings.logBuffer, idleTimeout=args.idleTimeout,
             timeout=args.timeout)
     args = dict (url=args.url,
-            enabledBehaviorNames=list (behavior.availableNames-blacklistedBehavior),
+            enabledBehaviorNames=list (set (behavior.availableMap.keys())-blacklistedBehavior),
             settings=settings, recursive=args.recursive,
             concurrency=args.concurrency)
     q = bot.memory['crocoite']['q']
