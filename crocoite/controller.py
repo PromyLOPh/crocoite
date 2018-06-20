@@ -23,6 +23,8 @@ Controller classes, handling actions required for archival
 """
 
 class ControllerSettings:
+    __slots__ = ('logBuffer', 'maxBodySize', 'idleTimeout', 'timeout')
+
     def __init__ (self, logBuffer=1000, maxBodySize=50*1024*1024, idleTimeout=2, timeout=10):
         self.logBuffer = logBuffer
         self.maxBodySize = maxBodySize
@@ -38,6 +40,8 @@ defaultSettings = ControllerSettings ()
 class EventHandler:
     """ Abstract base class for event handler """
 
+    __slots__ = ()
+
     # this handler wants to know about exceptions before they are reraised by
     # the controller
     acceptException = False
@@ -48,6 +52,8 @@ class EventHandler:
 from .browser import BrowserCrashed
 
 class StatsHandler (EventHandler):
+    __slots__ = ('stats')
+
     acceptException = True
 
     def __init__ (self):
@@ -72,6 +78,8 @@ from .browser import ChromeService, SiteLoader, Item
 from .util import getFormattedViewportMetrics
 
 class ControllerStart:
+    __slots__ = ('payload')
+
     def __init__ (self, payload):
         self.payload = payload
 
@@ -82,6 +90,8 @@ class SinglePageController:
     Dispatches between producer (site loader and behavior scripts) and consumer
     (stats, warc writer).
     """
+
+    __slots__ = ('url', 'output', 'service', 'behavior', 'settings', 'logger', 'handler')
 
     def __init__ (self, url, output, service=ChromeService (), behavior=cbehavior.available, \
             logger=logging.getLogger(__name__), settings=defaultSettings, handler=[]):
@@ -183,6 +193,9 @@ class SinglePageController:
 
 class RecursionPolicy:
     """ Abstract recursion policy """
+
+    __slots__ = ()
+
     def __call__ (self, urls):
         raise NotImplementedError
 
@@ -192,6 +205,9 @@ class DepthLimit (RecursionPolicy):
     
     depth==0 means no recursion, depth==1 is the page and outgoing links, …
     """
+
+    __slots__ = ('maxdepth')
+
     def __init__ (self, maxdepth=0):
         self.maxdepth = maxdepth
 
@@ -213,6 +229,9 @@ class PrefixLimit (RecursionPolicy):
     ignored: http://example.com/bar http://offsite.example/foo
     accepted: http://example.com/foobar http://example.com/foo/bar
     """
+
+    __slots__ = ('prefix')
+
     def __init__ (self, prefix):
         self.prefix = prefix
 
@@ -232,6 +251,9 @@ class RecursiveController (EventHandler):
 
     Visits links acording to recursionPolicy
     """
+
+    __slots__ = ('url', 'output', 'service', 'behavior', 'settings', 'logger',
+            'recursionPolicy', 'handler', 'urls', 'have')
 
     def __init__ (self, url, output, service=ChromeService (), behavior=cbehavior.available, \
             logger=logging.getLogger(__name__), settings=defaultSettings,

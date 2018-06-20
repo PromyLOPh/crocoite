@@ -41,6 +41,8 @@ from .behavior import Script, DomSnapshotEvent, ScreenshotEvent
 from .browser import Item
 
 class WarcHandler (EventHandler):
+    __slots__ = ('logger', 'writer', 'maxBodySize')
+
     def __init__ (self, fd,
             logger=logging.getLogger(__name__),
             maxBodySize=defaultSettings.maxBodySize):

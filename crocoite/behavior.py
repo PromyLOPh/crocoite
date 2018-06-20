@@ -43,6 +43,9 @@ logger = logging.getLogger(__name__)
 
 class Script:
     """ A JavaScript resource """
+
+    __slots__ = ('path', 'data')
+
     def __init__ (self, path=None, encoding='utf-8'):
         self.path = path
         if path:
@@ -61,6 +64,8 @@ class Script:
         return s
 
 class Behavior:
+    __slots__ = ('loader')
+
     # unique behavior name
     name = None
 
@@ -102,6 +107,8 @@ class HostnameFilter:
 class JsOnload (Behavior):
     """ Execute JavaScript on page load """
 
+    __slots__ = ('script', 'scriptHandle')
+
     scriptPath = None
 
     def __init__ (self, loader):
@@ -120,6 +127,8 @@ class JsOnload (Behavior):
 ### Generic scripts ###
 
 class Scroll (JsOnload):
+    __slots__ = ('stopVarname')
+
     name = 'scroll'
     scriptPath = 'scroll.js'
 
@@ -170,6 +179,8 @@ class EmulateScreenMetrics (Behavior):
         yield from ()
 
 class DomSnapshotEvent:
+    __slots__ = ('url', 'document', 'viewport')
+
     def __init__ (self, url, document, viewport):
         self.url = url
         self.document = document
@@ -185,6 +196,8 @@ class DomSnapshot (Behavior):
     XXX: Currently writes a response, when it should use “resource”. pywb
     can’t handle that though.
     """
+
+    __slots__ = ('script')
 
     name = 'domSnapshot'
 
@@ -222,6 +235,8 @@ class DomSnapshot (Behavior):
                 yield DomSnapshotEvent (doc['documentURL'], serializer.render (stream, 'utf-8'), viewport)
 
 class ScreenshotEvent:
+    __slots__ = ('yoff', 'data')
+
     def __init__ (self, yoff, data):
         self.yoff = yoff
         self.data = data
@@ -257,6 +272,8 @@ class Click (JsOnload):
     scriptPath = 'click.js'
 
 class ExtractLinksEvent:
+    __slots__ = ('links')
+
     def __init__ (self, links):
         self.links = links
 
@@ -268,12 +285,13 @@ class ExtractLinks (Behavior):
     manually resolve relative links.
     """
 
+    __slots__ = ('script')
+
     name = 'extractLinks'
 
     def __init__ (self, loader):
         super ().__init__ (loader)
         self.script = Script ('extract-links.js')
-        self.links = None
 
     def onfinish (self):
         tab = self.loader.tab

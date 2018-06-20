@@ -111,6 +111,8 @@ class IntegerDict (UserDict):
 class DistributedRecursiveController (RecursiveController):
     """ Distributed, recursive controller using celery """
 
+    __slots__ = ('concurrency', 'stats')
+
     def __init__ (self, url, service=ChromeService (), behavior=behavior.available, \
             logger=logging.getLogger(__name__), settings=defaultSettings,
             recursionPolicy=DepthLimit (0), concurrency=1):

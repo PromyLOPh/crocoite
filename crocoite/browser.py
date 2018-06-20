@@ -36,6 +36,9 @@ class Item:
     Simple wrapper containing Chrome request and response
     """
 
+    __slots__ = ('tab', 'chromeRequest', 'chromeResponse', 'chromeFinished',
+            'isRedirect', 'failed')
+
     def __init__ (self, tab):
         self.tab = tab
         self.chromeRequest = None
@@ -164,6 +167,7 @@ class SiteLoader:
     XXX: track popup windows/new tabs and close them
     """
 
+    __slots__ = ('requests', 'browser', 'url', 'logger', 'queue', 'notify', 'tab')
     allowedSchemes = {'http', 'https'}
 
     def __init__ (self, browser, url, logger=logging.getLogger(__name__)):
@@ -329,6 +333,8 @@ class ChromeService:
     ready.
     """
 
+    __slots__ = ('binary', 'windowSize', 'p', 'userDataDir')
+
     def __init__ (self, binary='google-chrome-stable', windowSize=(1920, 1080)):
         self.binary = binary
         self.windowSize = windowSize
@@ -380,6 +386,8 @@ class ChromeService:
         self.p = None
 
 class NullService:
+    __slots__ = ('url')
+
     def __init__ (self, url):
         self.url = url
 
@@ -397,6 +405,7 @@ from operator import itemgetter
 class TestItem (Item):
     """ This should be as close to Item as possible """
 
+    __slots__ = ('bodySend', '_body')
     base = 'http://localhost:8000/'
 
     def __init__ (self, path, status, headers, bodyReceive, bodySend=None):
@@ -461,6 +470,8 @@ def startServer ():
     httpd.serve_forever()
 
 class TestSiteLoader (unittest.TestCase):
+    __slots__ = ('server', 'baseurl', 'service', 'browser')
+
     def setUp (self):
         from multiprocessing import Process
         self.server = Process (target=startServer)
