@@ -25,4 +25,6 @@ setup(
     package_data={
             'crocoite': ['data/*'],
     },
+    setup_requires=["pytest-runner"],
+    tests_require=["pytest"],
 )

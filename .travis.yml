@@ -8,7 +8,7 @@ python:
 install:
     - pip install .
 script:
-    - python -m unittest crocoite.browser
+    - pytest --cov=crocoite crocoite
 addons:
     chrome: stable
 sudo: required
