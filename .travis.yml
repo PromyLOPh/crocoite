@@ -8,7 +8,7 @@ python:
 install:
     - pip install .
 script:
-    - pytest --cov=crocoite crocoite
+    - python setup.py test
 addons:
     chrome: stable
 sudo: required
