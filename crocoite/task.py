@@ -39,7 +39,7 @@ from celery import Celery
 from celery.utils.log import get_task_logger
 
 from .browser import ChromeService, BrowserCrashed
-from .controller import SinglePageController, ControllerSettings, RecursiveController, defaultSettings, DepthLimit, PrefixLimit, StatsHandler
+from .controller import SinglePageController, ControllerSettings, RecursiveController, defaultSettings, DepthLimit, StatsHandler
 from . import behavior
 from .cli import parseRecursive
 from .warc import WarcHandler
@@ -82,9 +82,9 @@ def archive (self, url, settings, enabledBehaviorNames):
     enabledBehavior = list (filter (lambda x: x.name in enabledBehaviorNames, behavior.available))
     settings = ControllerSettings (**settings)
     try:
-        controller = SinglePageController (url, fd, behavior=enabledBehavior,
+        c = SinglePageController (url, fd, behavior=enabledBehavior,
                 settings=settings, handler=handler)
-        controller.run ()
+        c.run ()
     except BrowserCrashed:
         # nothing we can do about that
         logger.error ('browser crashed for {}'.format (url))
@@ -137,9 +137,9 @@ def controller (self, url, settings, enabledBehaviorNames, recursive, concurrenc
     recursionPolicy = parseRecursive (recursive, url)
     enabledBehavior = list (filter (lambda x: x.name in enabledBehaviorNames, behavior.available))
     settings = ControllerSettings (**settings)
-    controller = DistributedRecursiveController (url, None, behavior=enabledBehavior,
+    c = DistributedRecursiveController (url, None, behavior=enabledBehavior,
             settings=settings, recursionPolicy=recursionPolicy, concurrency=concurrency)
-    controller.run ()
-    return dict (controller.stats)
+    c.run ()
+    return dict (c.stats)
 
 

@@ -105,7 +105,6 @@ eventAttributes = {'onabort',
 
 from html5lib.treewalkers.base import TreeWalker
 from html5lib.filters.base import Filter
-from html5lib.serializer import HTMLSerializer
 from html5lib import constants
 
 class ChromeTreeWalker (TreeWalker):
@@ -195,7 +194,6 @@ class StripAttributeFilter (Filter):
         self.attributes = set (map (str.lower, attributes))
 
     def __iter__(self):
-        default_namespace = constants.namespaces["html"]
         for token in Filter.__iter__(self):
             data = token.get ('data')
             if data and token['type'] in {'StartTag', 'EmptyTag'}:

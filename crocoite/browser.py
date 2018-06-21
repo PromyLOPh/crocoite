@@ -27,6 +27,7 @@ from urllib.parse import urlsplit
 from base64 import b64decode
 from collections import deque
 from threading import Event
+from http.server import BaseHTTPRequestHandler
 
 import pychrome
 
@@ -323,14 +324,10 @@ class SiteLoader:
 
 import subprocess, os, time
 from tempfile import mkdtemp
-import socket, shutil
+import shutil
 
 class ChromeService:
-    """
-    Start Chrome with socket activation (i.e. pass listening socket). Polling
-    is not required with this method, since reads will block until Chrome is
-    ready.
-    """
+    """ Start Google Chrome listening on a random port """
 
     __slots__ = ('binary', 'windowSize', 'p', 'userDataDir')
 

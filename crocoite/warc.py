@@ -27,10 +27,7 @@ import json
 from io import BytesIO
 from warcio.statusandheaders import StatusAndHeaders
 from urllib.parse import urlsplit
-from logging.handlers import BufferingHandler
 from datetime import datetime
-from threading import Thread
-from queue import Queue
 
 from warcio.timeutils import datetime_to_iso_date
 from warcio.warcwriter import WARCWriter
@@ -98,7 +95,6 @@ class WarcHandler (EventHandler):
 
     def _writeResponse (self, item, concurrentTo, rawBody, base64Encoded):
         writer = self.writer
-        reqId = item.id
         resp = item.response
 
         # now the response

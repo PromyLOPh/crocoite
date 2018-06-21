@@ -23,7 +23,6 @@ Generic and per-site behavior scripts
 """
 
 import logging, time
-from io import BytesIO
 from urllib.parse import urlsplit
 import os.path
 import pkg_resources
@@ -31,13 +30,11 @@ from base64 import b64decode
 from collections import OrderedDict
 
 from html5lib.serializer import HTMLSerializer
-from warcio.statusandheaders import StatusAndHeaders
 from pychrome.exceptions import TimeoutException
 
-from .util import randomString, packageUrl, getFormattedViewportMetrics
+from .util import randomString, getFormattedViewportMetrics
 from . import html
 from .html import StripAttributeFilter, StripTagFilter, ChromeTreeWalker
-from .browser import SiteLoader
 
 logger = logging.getLogger(__name__)
 
