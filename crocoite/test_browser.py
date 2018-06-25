@@ -192,7 +192,11 @@ def test_invalidurl (loader):
     url = 'http://nonexistent.example/'
     with loader (url) as l:
         l.start ()
+
         q = l.queue
+        if not l.notify.wait (10):
+            assert False, 'timeout'
+
         it = q.popleft ()
         assert it.failed
 
