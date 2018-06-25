@@ -78,40 +78,45 @@ class WarcHandler (EventHandler):
 
         return record.rec_headers['WARC-Record-ID']
 
-    def _getBody (self, item):
+    def _writeResponse (self, item, concurrentTo):
+        # fetch the body
         reqId = item.id
-
-        rawBody = b''
+        rawBody = None
         base64Encoded = False
+        bodyTruncated = None
         if item.isRedirect:
             # redirects reuse the same request, thus we cannot safely retrieve
             # the body (i.e getResponseBody may return the new location’s
-            # body). This is fine.
-            pass
+            # body).
+            bodyTruncated = 'unspecified'
         elif item.encodedDataLength > self.maxBodySize:
+            bodyTruncated = 'length'
             # check body size first, since we’re loading everything into memory
-            raise ValueError ('body for {} too large {} vs {}'.format (reqId,
+            self.logger.error ('body for {} too large {} vs {}'.format (reqId,
                     item.encodedDataLength, self.maxBodySize))
         else:
-            rawBody, base64Encoded = item.body
-        return rawBody, base64Encoded
-
-    def _writeResponse (self, item, concurrentTo, rawBody, base64Encoded):
-        writer = self.writer
-        resp = item.response
+            try:
+                rawBody, base64Encoded = item.body
+            except ValueError:
+                # oops, don’t know what went wrong here
+                bodyTruncated = 'unspecified'
 
         # now the response
+        resp = item.response
         warcHeaders = {
                 'WARC-Concurrent-To': concurrentTo,
                 'WARC-IP-Address': resp.get ('remoteIPAddress', ''),
                 'X-Chrome-Protocol': resp.get ('protocol', ''),
                 'X-Chrome-FromDiskCache': str (resp.get ('fromDiskCache')),
                 'X-Chrome-ConnectionReused': str (resp.get ('connectionReused')),
-                'X-Chrome-Base64Body': str (base64Encoded),
                 'WARC-Date': datetime_to_iso_date (datetime.utcfromtimestamp (
                         item.chromeRequest['wallTime']+
                         (item.chromeResponse['timestamp']-item.chromeRequest['timestamp']))),
                 }
+        if bodyTruncated:
+            warcHeaders['WARC-Truncated'] = bodyTruncated
+        else:
+            warcHeaders['X-Chrome-Base64Body'] = str (base64Encoded)
 
         httpHeaders = StatusAndHeaders('{} {}'.format (resp['status'],
                 item.statusText), item.responseHeaders,
@@ -131,10 +136,15 @@ class WarcHandler (EventHandler):
                 contentType += '; charset=utf-8'
             httpHeaders.replace_header ('content-type', contentType)
 
-        httpHeaders.replace_header ('content-length', '{:d}'.format (len (rawBody)))
+        if rawBody is not None:
+            httpHeaders.replace_header ('content-length', '{:d}'.format (len (rawBody)))
+            bodyIo = BytesIO (rawBody)
+        else:
+            bodyIo = BytesIO ()
 
+        writer = self.writer
         record = writer.create_warc_record(resp['url'], 'response',
-                warc_headers_dict=warcHeaders, payload=BytesIO (rawBody),
+                warc_headers_dict=warcHeaders, payload=bodyIo,
                 http_headers=httpHeaders)
         writer.write_record(record)
 
@@ -153,13 +163,9 @@ class WarcHandler (EventHandler):
         if item.failed:
             # should have been handled by the logger already
             return
-        try:
-            # write neither request nor response if we cannot retrieve the body
-            rawBody, base64Encoded = self._getBody (item)
-            concurrentTo = self._writeRequest (item)
-            self._writeResponse (item, concurrentTo, rawBody, base64Encoded)
-        except ValueError as e:
-            self.logger.error (e.args[0])
+
+        concurrentTo = self._writeRequest (item)
+        self._writeResponse (item, concurrentTo)
 
     def _addRefersTo (self, headers, url):
         refersTo = self.documentRecords.get (url)
