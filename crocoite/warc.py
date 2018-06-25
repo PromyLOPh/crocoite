@@ -38,7 +38,7 @@ from .behavior import Script, DomSnapshotEvent, ScreenshotEvent
 from .browser import Item
 
 class WarcHandler (EventHandler):
-    __slots__ = ('logger', 'writer', 'maxBodySize')
+    __slots__ = ('logger', 'writer', 'maxBodySize', 'documentRecords')
 
     def __init__ (self, fd,
             logger=logging.getLogger(__name__),
@@ -46,6 +46,9 @@ class WarcHandler (EventHandler):
         self.logger = logger
         self.writer = WARCWriter (fd, gzip=True)
         self.maxBodySize = maxBodySize
+        # maps document urls to WARC record ids, required for DomSnapshotEvent
+        # and ScreenshotEvent
+        self.documentRecords = {}
 
     def _writeRequest (self, item):
         writer = self.writer
@@ -135,6 +138,9 @@ class WarcHandler (EventHandler):
                 http_headers=httpHeaders)
         writer.write_record(record)
 
+        if item.resourceType == 'Document':
+            self.documentRecords[item.url] = record.rec_headers.get_header ('WARC-Record-ID')
+
     def _writeScript (self, item):
         writer = self.writer
         encoding = 'utf-8'
@@ -155,21 +161,36 @@ class WarcHandler (EventHandler):
         except ValueError as e:
             self.logger.error (e.args[0])
 
+    def _addRefersTo (self, headers, url):
+        refersTo = self.documentRecords.get (url)
+        if refersTo:
+            headers['WARC-Refers-To'] = refersTo
+        else:
+            self.logger.error ('No document record found for {}'.format (url))
+        return headers
+
     def _writeDomSnapshot (self, item):
         writer = self.writer
-        httpHeaders = StatusAndHeaders('200 OK', {}, protocol='HTTP/1.1')
-        record = writer.create_warc_record (item.url, 'response',
+
+        warcHeaders = {'X-DOM-Snapshot': str (True),
+                'X-Chrome-Viewport': item.viewport,
+                'Content-Type': 'text/html; charset=utf-8',
+                }
+
+        self._addRefersTo (warcHeaders, item.url)
+
+        record = writer.create_warc_record (item.url, 'conversion',
                 payload=BytesIO (item.document),
-                http_headers=httpHeaders,
-                warc_headers_dict={'X-DOM-Snapshot': str (True),
-                        'X-Chrome-Viewport': item.viewport})
+                warc_headers_dict=warcHeaders)
         writer.write_record (record)
 
     def _writeScreenshot (self, item):
         writer = self.writer
-        url = packageUrl ('screenshot-{}-{}.png'.format (0, item.yoff))
-        record = writer.create_warc_record (url, 'resource',
-                payload=BytesIO (item.data), warc_headers_dict={'Content-Type': 'image/png'})
+        warcHeaders = {'Content-Type': 'image/png',
+                'X-Crocoite-Screenshot-Y-Offset': str (item.yoff)}
+        self._addRefersTo (warcHeaders, item.url)
+        record = writer.create_warc_record (item.url, 'conversion',
+                payload=BytesIO (item.data), warc_headers_dict=warcHeaders)
         writer.write_record (record)
 
     def _writeControllerStart (self, item):

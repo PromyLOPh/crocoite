@@ -41,9 +41,9 @@ class Item:
 
     def __init__ (self, tab):
         self.tab = tab
-        self.chromeRequest = None
-        self.chromeResponse = None
-        self.chromeFinished = None
+        self.chromeRequest = {}
+        self.chromeResponse = {}
+        self.chromeFinished = {}
         self.isRedirect = False
         self.failed = False
 
@@ -127,6 +127,10 @@ class Item:
         if text:
             return text[0]
         return 'No status text available'
+
+    @property
+    def resourceType (self):
+        return self.chromeResponse.get ('type', self.chromeRequest.get ('type', None))
 
     @staticmethod
     def _unfoldHeaders (headers):

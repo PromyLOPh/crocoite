@@ -32,7 +32,7 @@ from collections import OrderedDict
 from html5lib.serializer import HTMLSerializer
 from pychrome.exceptions import TimeoutException
 
-from .util import randomString, getFormattedViewportMetrics
+from .util import randomString, getFormattedViewportMetrics, removeFragment
 from . import html
 from .html import StripAttributeFilter, StripTagFilter, ChromeTreeWalker
 
@@ -229,12 +229,13 @@ class DomSnapshot (Behavior):
                 disallowedAttributes = html.eventAttributes
                 stream = StripAttributeFilter (StripTagFilter (walker, disallowedTags), disallowedAttributes)
                 serializer = HTMLSerializer ()
-                yield DomSnapshotEvent (doc['documentURL'], serializer.render (stream, 'utf-8'), viewport)
+                yield DomSnapshotEvent (removeFragment (doc['documentURL']), serializer.render (stream, 'utf-8'), viewport)
 
 class ScreenshotEvent:
-    __slots__ = ('yoff', 'data')
+    __slots__ = ('yoff', 'data', 'url')
 
-    def __init__ (self, yoff, data):
+    def __init__ (self, url, yoff, data):
+        self.url = url
         self.yoff = yoff
         self.data = data
 
@@ -248,6 +249,12 @@ class Screenshot (Behavior):
     def onfinish (self):
         tab = self.loader.tab
 
+        try:
+            url = removeFragment (tab.Page.getFrameTree ()['frameTree']['frame']['url'])
+        except KeyError:
+            logger.error ('frame has no url')
+            url = None
+
         # see https://github.com/GoogleChrome/puppeteer/blob/230be28b067b521f0577206899db01f0ca7fc0d2/examples/screenshots-longpage.js
         # Hardcoded max texture size of 16,384 (crbug.com/770769)
         maxDim = 16*1024
@@ -260,7 +267,7 @@ class Screenshot (Behavior):
             height = min (contentSize['height'] - yoff, maxDim)
             clip = {'x': 0, 'y': yoff, 'width': width, 'height': height, 'scale': 1}
             data = b64decode (tab.Page.captureScreenshot (format='png', clip=clip)['data'])
-            yield ScreenshotEvent (yoff, data)
+            yield ScreenshotEvent (url, yoff, data)
 
 class Click (JsOnload):
     """ Generic link clicking """

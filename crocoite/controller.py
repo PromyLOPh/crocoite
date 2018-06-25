@@ -71,11 +71,10 @@ class StatsHandler (EventHandler):
             self.stats['crashed'] += 1
 
 import logging, time
-from urllib.parse import urlsplit, urlunsplit
 
 from . import behavior as cbehavior
 from .browser import ChromeService, SiteLoader, Item
-from .util import getFormattedViewportMetrics
+from .util import getFormattedViewportMetrics, removeFragment
 
 class ControllerStart:
     __slots__ = ('payload')
@@ -237,11 +236,6 @@ class PrefixLimit (RecursionPolicy):
 
     def __call__ (self, urls):
         return set (filter (lambda u: u.startswith (self.prefix), urls))
-
-def removeFragment (u):
-    """ Remove fragment from url (i.e. #hashvalue) """
-    s = urlsplit (u)
-    return urlunsplit ((s.scheme, s.netloc, s.path, s.query, ''))
 
 from .behavior import ExtractLinksEvent
 

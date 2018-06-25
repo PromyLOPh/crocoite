@@ -192,12 +192,11 @@ def archive (bot, trigger):
     if not args:
         bot.reply ('Sorry, I don’t understand {}'.format (trigger.group (2)))
         return
-    blacklistedBehavior = {'domSnapshot', 'screenshot'}
     settings = dict (maxBodySize=args.maxBodySize,
             logBuffer=defaultSettings.logBuffer, idleTimeout=args.idleTimeout,
             timeout=args.timeout)
     args = dict (url=args.url,
-            enabledBehaviorNames=list (set (behavior.availableMap.keys())-blacklistedBehavior),
+            enabledBehaviorNames=list (behavior.availableMap.keys ()),
             settings=settings, recursive=args.recursive,
             concurrency=args.concurrency)
     q = bot.memory['crocoite']['q']

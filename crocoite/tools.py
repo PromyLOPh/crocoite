@@ -80,18 +80,21 @@ def extractScreenshot ():
 
     args = parser.parse_args()
 
-    screenshotRe = re.compile (r'^urn:crocoite:screenshot-(\d+)-(\d+).png$', re.I)
     with args.input:
-        for record in ArchiveIterator(args.input):
-            uri = record.rec_headers.get_header('WARC-Target-URI')
-            if record.rec_type == 'resource':
-                m = screenshotRe.match (uri)
-                xoff, yoff = m.groups ()
-                if m:
-                    outpath = '{}-{}-{}.png'.format (args.prefix, xoff, yoff)
-                    if args.force or not os.path.exists (outpath):
-                        with open (outpath, 'wb') as out:
-                            shutil.copyfileobj (record.raw_stream, out)
-                    else:
-                        print ('not overwriting {}'.format (outpath))
+        for record in ArchiveIterator (args.input):
+            headers = record.rec_headers
+            if record.rec_type != 'conversion' or \
+                    headers['Content-Type'] != 'image/png' or \
+                    'X-Crocoite-Screenshot-Y-Offset' not in headers:
+                continue
+
+            urlSanitized = headers.get_header('WARC-Target-URI').replace ('/', '_')
+            xoff = 0
+            yoff = int (headers.get_header ('X-Crocoite-Screenshot-Y-Offset'))
+            outpath = '{}-{}-{}-{}.png'.format (args.prefix, urlSanitized, xoff, yoff)
+            if args.force or not os.path.exists (outpath):
+                with open (outpath, 'wb') as out:
+                    shutil.copyfileobj (record.raw_stream, out)
+            else:
+                print ('not overwriting {}'.format (outpath))
 

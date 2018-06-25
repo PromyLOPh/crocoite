@@ -23,6 +23,7 @@ Random utility functions
 """
 
 import random
+from urllib.parse import urlsplit, urlunsplit
 
 def randomString (length=None, chars='abcdefghijklmnopqrstuvwxyz'):
     if length is None:
@@ -40,4 +41,9 @@ def getFormattedViewportMetrics (tab):
     # XXX: I’m not entirely sure which one we should use here
     return '{}x{}'.format (layoutMetrics['layoutViewport']['clientWidth'],
                 layoutMetrics['layoutViewport']['clientHeight'])
+
+def removeFragment (u):
+    """ Remove fragment from url (i.e. #hashvalue) """
+    s = urlsplit (u)
+    return urlunsplit ((s.scheme, s.netloc, s.path, s.query, ''))
 
