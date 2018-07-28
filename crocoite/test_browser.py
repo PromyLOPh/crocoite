@@ -24,6 +24,7 @@ from http.server import BaseHTTPRequestHandler
 from pychrome.exceptions import TimeoutException
 
 from .browser import Item, SiteLoader, ChromeService, NullService, BrowserCrashed
+from .logger import Logger, Consumer
 
 class TItem (Item):
     """ This should be as close to Item as possible """
@@ -102,12 +103,22 @@ def http ():
     p.terminate ()
     p.join ()
 
+class AssertConsumer (Consumer):
+    def __call__ (self, **kwargs):
+        assert 'uuid' in kwargs
+        assert 'msg' in kwargs
+        assert 'context' in kwargs
+
 @pytest.fixture
-def loader (http):
+def logger ():
+    return Logger (consumer=[AssertConsumer ()])
+
+@pytest.fixture
+def loader (http, logger):
     def f (path):
         if path.startswith ('/'):
             path = 'http://localhost:8000{}'.format (path)
-        return SiteLoader (browser, path)
+        return SiteLoader (browser, path, logger)
     print ('loader setup')
     with ChromeService () as browser:
         yield f

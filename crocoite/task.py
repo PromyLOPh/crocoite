@@ -22,7 +22,7 @@
 Celery distributed tasks
 """
 
-import os, logging
+import os
 
 from urllib.parse import urlsplit
 from datetime import datetime
@@ -113,8 +113,8 @@ class DistributedRecursiveController (RecursiveController):
 
     __slots__ = ('concurrency', 'stats')
 
-    def __init__ (self, url, service=ChromeService (), behavior=behavior.available, \
-            logger=logging.getLogger(__name__), settings=defaultSettings,
+    def __init__ (self, url, logger, service=ChromeService (), behavior=behavior.available, \
+            settings=defaultSettings,
             recursionPolicy=DepthLimit (0), concurrency=1):
         super ().__init__ (url, None, service, behavior, logger, settings, recursionPolicy)
         self.concurrency = concurrency
@@ -134,10 +134,11 @@ class DistributedRecursiveController (RecursiveController):
 def controller (self, url, settings, enabledBehaviorNames, recursive, concurrency):
     """ Recursive controller """
 
+    logger = Logger (consumer=[DatetimeConsumer (), JsonPrintConsumer ()])
     recursionPolicy = parseRecursive (recursive, url)
     enabledBehavior = list (filter (lambda x: x.name in enabledBehaviorNames, behavior.available))
     settings = ControllerSettings (**settings)
-    c = DistributedRecursiveController (url, None, behavior=enabledBehavior,
+    c = DistributedRecursiveController (url, None, logger=logger, behavior=enabledBehavior,
             settings=settings, recursionPolicy=recursionPolicy, concurrency=concurrency)
     c.run ()
     return dict (c.stats)

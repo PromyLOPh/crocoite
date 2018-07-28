@@ -22,8 +22,7 @@
 Classes writing data to WARC files
 """
 
-import logging
-import json
+import json, threading
 from io import BytesIO
 from warcio.statusandheaders import StatusAndHeaders
 from urllib.parse import urlsplit
@@ -38,17 +37,30 @@ from .behavior import Script, DomSnapshotEvent, ScreenshotEvent
 from .browser import Item
 
 class WarcHandler (EventHandler):
-    __slots__ = ('logger', 'writer', 'maxBodySize', 'documentRecords')
+    __slots__ = ('logger', 'writer', 'maxBodySize', 'documentRecords', 'log',
+            'maxLogSize', 'logEncoding')
 
     def __init__ (self, fd,
-            logger=logging.getLogger(__name__),
+            logger,
             maxBodySize=defaultSettings.maxBodySize):
         self.logger = logger
         self.writer = WARCWriter (fd, gzip=True)
         self.maxBodySize = maxBodySize
+
+        self.logEncoding = 'utf-8'
+        self.log = BytesIO ()
+        # max log buffer size (bytes)
+        self.maxLogSize = 500*1024
+
         # maps document urls to WARC record ids, required for DomSnapshotEvent
         # and ScreenshotEvent
         self.documentRecords = {}
+
+    def __enter__ (self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._flushLogEntries ()
 
     def _writeRequest (self, item):
         writer = self.writer
@@ -203,6 +215,24 @@ class WarcHandler (EventHandler):
         writer = self.writer
         warcinfo = writer.create_warcinfo_record (filename=None, info=item.payload)
         writer.write_record (warcinfo)
+
+    def _flushLogEntries (self):
+        writer = self.writer
+        self.log.seek (0)
+        # XXX: we should use the type continuation here
+        record = writer.create_warc_record (packageUrl ('log'), 'resource', payload=self.log,
+                warc_headers_dict={'Content-Type': 'text/plain; encoding={}'.format (self.logEncoding)})
+        writer.write_record (record)
+        self.log = BytesIO ()
+
+    def _writeLog (self, item):
+        """ Handle log entries, called by .logger.WarcHandlerConsumer only """
+        self.log.write (item.encode (self.logEncoding))
+        self.log.write (b'\n')
+        # instead of locking, check we’re running in the main thread
+        if self.log.tell () > self.maxLogSize and \
+                threading.current_thread () is threading.main_thread ():
+            self._flushLogEntries ()
 
     route = {Script: _writeScript,
             Item: _writeItem,

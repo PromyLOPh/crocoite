@@ -22,7 +22,7 @@
 Generic and per-site behavior scripts
 """
 
-import logging, time
+import time
 from urllib.parse import urlsplit
 import os.path
 import pkg_resources
@@ -35,8 +35,6 @@ from pychrome.exceptions import TimeoutException
 from .util import randomString, getFormattedViewportMetrics, removeFragment
 from . import html
 from .html import StripAttributeFilter, StripTagFilter, ChromeTreeWalker
-
-logger = logging.getLogger(__name__)
 
 class Script:
     """ A JavaScript resource """
@@ -61,14 +59,15 @@ class Script:
         return s
 
 class Behavior:
-    __slots__ = ('loader')
+    __slots__ = ('loader', 'logger')
 
     # unique behavior name
     name = None
 
-    def __init__ (self, loader):
+    def __init__ (self, loader, logger):
         assert self.name is not None
         self.loader = loader
+        self.logger = logger.bind (context=type (self).__name__)
 
     def __contains__ (self, url):
         """
@@ -108,8 +107,8 @@ class JsOnload (Behavior):
 
     scriptPath = None
 
-    def __init__ (self, loader):
-        super ().__init__ (loader)
+    def __init__ (self, loader, logger):
+        super ().__init__ (loader, logger)
         self.script = Script (self.scriptPath)
         self.scriptHandle = None
 
@@ -129,8 +128,8 @@ class Scroll (JsOnload):
     name = 'scroll'
     scriptPath = 'scroll.js'
 
-    def __init__ (self, loader):
-        super ().__init__ (loader)
+    def __init__ (self, loader, logger):
+        super ().__init__ (loader, logger)
         stopVarname = '__' + __package__ + '_stop__'
         newStopVarname = randomString ()
         self.script.data = self.script.data.replace (stopVarname, newStopVarname)
@@ -198,8 +197,8 @@ class DomSnapshot (Behavior):
 
     name = 'domSnapshot'
 
-    def __init__ (self, loader):
-        super ().__init__ (loader)
+    def __init__ (self, loader, logger):
+        super ().__init__ (loader, logger)
         self.script = Script ('canvas-snapshot.js')
 
     def onfinish (self):
@@ -216,11 +215,11 @@ class DomSnapshot (Behavior):
             if rawUrl in haveUrls:
                 # ignore duplicate URLs. they are usually caused by
                 # javascript-injected iframes (advertising) with no(?) src
-                logger.warning ('have DOM snapshot for URL {}, ignoring'.format (rawUrl))
+                self.logger.warning ('have DOM snapshot for URL {}, ignoring'.format (rawUrl))
                 continue
             url = urlsplit (rawUrl)
             if url.scheme in ('http', 'https'):
-                logger.debug ('saving DOM snapshot for url {}, base {}'.format (doc['documentURL'], doc['baseURL']))
+                self.logger.debug ('saving DOM snapshot for url {}, base {}'.format (doc['documentURL'], doc['baseURL']))
                 haveUrls.add (rawUrl)
                 walker = ChromeTreeWalker (doc)
                 # remove script, to make the page static and noscript, because at the
@@ -249,10 +248,11 @@ class Screenshot (Behavior):
     def onfinish (self):
         tab = self.loader.tab
 
+        tree = tab.Page.getFrameTree ()
         try:
-            url = removeFragment (tab.Page.getFrameTree ()['frameTree']['frame']['url'])
+            url = removeFragment (tree['frameTree']['frame']['url'])
         except KeyError:
-            logger.error ('frame has no url')
+            self.logger.error ('frame without url', tree=tree)
             url = None
 
         # see https://github.com/GoogleChrome/puppeteer/blob/230be28b067b521f0577206899db01f0ca7fc0d2/examples/screenshots-longpage.js
@@ -293,8 +293,8 @@ class ExtractLinks (Behavior):
 
     name = 'extractLinks'
 
-    def __init__ (self, loader):
-        super ().__init__ (loader)
+    def __init__ (self, loader, logger):
+        super ().__init__ (loader, logger)
         self.script = Script ('extract-links.js')
 
     def onfinish (self):

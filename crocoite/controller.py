@@ -70,7 +70,7 @@ class StatsHandler (EventHandler):
         elif isinstance (item, BrowserCrashed):
             self.stats['crashed'] += 1
 
-import logging, time
+import time
 
 from . import behavior as cbehavior
 from .browser import ChromeService, SiteLoader, Item
@@ -92,14 +92,15 @@ class SinglePageController:
 
     __slots__ = ('url', 'output', 'service', 'behavior', 'settings', 'logger', 'handler')
 
-    def __init__ (self, url, output, service=ChromeService (), behavior=cbehavior.available, \
-            logger=logging.getLogger(__name__), settings=defaultSettings, handler=[]):
+    def __init__ (self, url, output, logger, \
+            service=ChromeService (), behavior=cbehavior.available, \
+            settings=defaultSettings, handler=[]):
         self.url = url
         self.output = output
         self.service = service
         self.behavior = behavior
         self.settings = settings
-        self.logger = logger
+        self.logger = logger.bind (context=type (self).__name__, url=url)
         self.handler = handler
 
     def processItem (self, item):
@@ -113,17 +114,22 @@ class SinglePageController:
             h.push (item)
 
     def run (self):
+        logger = self.logger
         def processQueue ():
             # XXX: this is very ugly code and does not work well. figure out a
             # better way to impose timeouts and still process all items in the
             # queue
             queue = l.queue
-            self.logger.debug ('processing at least {} queue items'.format (len (queue)))
+            logger.debug ('process queue',
+                    uuid='dafbf76b-a37e-44db-a021-efb5593b81f8',
+                    queuelen=len (queue))
             while True:
                 now = time.time ()
                 elapsed = now-start
                 maxTimeout = max (min (self.settings.idleTimeout, self.settings.timeout-elapsed), 0)
-                self.logger.debug ('max timeout is {} with elapsed {}'.format (maxTimeout, elapsed))
+                logger.debug ('timeout status',
+                        uuid='49550447-37e3-49ff-9a73-34da1c3e5984',
+                        maxTimeout=maxTimeout, elapsed=elapsed)
                 # skip waiting if there is work to do. processes all items in
                 # queue, regardless of timeouts, i.e. you need to make sure the
                 # queue will actually be empty at some point.
@@ -131,7 +137,9 @@ class SinglePageController:
                     if not l.notify.wait (maxTimeout):
                         assert len (queue) == 0, "event must be sent"
                         # timed out
-                        self.logger.debug ('timed out after {}'.format (elapsed))
+                        logger.debug ('timeout',
+                                uuid='6a7e0083-7c1a-45ba-b1ed-dbc4f26697c6',
+                                elapsed=elapsed)
                         break
                     else:
                         l.notify.clear ()
@@ -141,14 +149,16 @@ class SinglePageController:
                 for i in range (1000):
                     try:
                         item = queue.popleft ()
-                        self.logger.debug ('queue pop: {!r}, len now {}'.format (item, len (queue)))
+                        logger.debug ('queue pop',
+                                uuid='adc96bfa-026d-4092-b732-4a022a1a92ca',
+                                item=item, queuelen=len (queue))
                     except IndexError:
                         break
                     self.processItem (item)
                 if maxTimeout == 0:
                     break
 
-        with self.service as browser, SiteLoader (browser, self.url, logger=self.logger) as l:
+        with self.service as browser, SiteLoader (browser, self.url, logger=logger) as l:
             start = time.time ()
 
             version = l.tab.Browser.getVersion ()
@@ -162,10 +172,9 @@ class SinglePageController:
 
             # not all behavior scripts are allowed for every URL, filter them
             enabledBehavior = list (filter (lambda x: self.url in x,
-                    map (lambda x: x (l), self.behavior)))
+                    map (lambda x: x (l, logger), self.behavior)))
 
             for b in enabledBehavior:
-                self.logger.debug ('starting onload {}'.format (b))
                 # I decided against using the queue here to limit memory
                 # usage (screenshot behavior would put all images into
                 # queue before we could process them)
@@ -176,7 +185,6 @@ class SinglePageController:
             processQueue ()
 
             for b in enabledBehavior:
-                self.logger.debug ('starting onstop {}'.format (b))
                 for item in b.onstop ():
                     self.processItem (item)
 
@@ -184,7 +192,6 @@ class SinglePageController:
             processQueue ()
 
             for b in enabledBehavior:
-                self.logger.debug ('starting onfinish {}'.format (b))
                 for item in b.onfinish ():
                     self.processItem (item)
 
@@ -249,15 +256,16 @@ class RecursiveController (EventHandler):
     __slots__ = ('url', 'output', 'service', 'behavior', 'settings', 'logger',
             'recursionPolicy', 'handler', 'urls', 'have')
 
-    def __init__ (self, url, output, service=ChromeService (), behavior=cbehavior.available, \
-            logger=logging.getLogger(__name__), settings=defaultSettings,
+    def __init__ (self, url, output, logger,
+            service=ChromeService (), behavior=cbehavior.available, \
+            settings=defaultSettings, \
             recursionPolicy=DepthLimit (0), handler=[]):
         self.url = url
         self.output = output
         self.service = service
         self.behavior = behavior
         self.settings = settings
-        self.logger = logger
+        self.logger = logger.bind (context=type(self).__name__, url=url)
         self.recursionPolicy = recursionPolicy
         self.handler = handler
         self.handler.append (self)
@@ -269,19 +277,22 @@ class RecursiveController (EventHandler):
         """
         for u in urls:
             try:
-                c = SinglePageController (u, self.output, self.service,
-                        self.behavior, self.logger, self.settings, self.handler)
+                c = SinglePageController (url=u, output=self.output, service=self.service,
+                        behavior=self.behavior, logger=self.logger,
+                        settings=self.settings, handler=self.handler)
                 c.run ()
             except BrowserCrashed:
                 # this is fine if reported
-                self.logger.error ('browser crashed for {}'.format (u))
+                self.logger.error ('browser crashed', uuid='42582cbe-fb83-47ce-b330-d022a1c3b331')
 
     def run (self):
         self.have = set ()
         self.urls = set ([self.url])
 
         while self.urls:
-            self.logger.info ('retrieving {} urls'.format (len (self.urls)))
+            self.logger.info ('recursing',
+                    uuid='5b8498e4-868d-413c-a67e-004516b8452c',
+                    numurls=len (self.urls))
 
             self.have.update (self.urls)
             fetchurls = self.urls
@@ -296,8 +307,7 @@ class RecursiveController (EventHandler):
 
     def push (self, item):
         if isinstance (item, ExtractLinksEvent):
-            self.logger.debug ('adding extracted links: {}'.format (item.links))
+            self.logger.debug ('extracted links',
+                    uuid='8ee5e9c9-1130-4c5c-88ff-718508546e0c', links=item.links)
             self.urls.update (map (removeFragment, item.links))
-        else:
-            self.logger.debug ('{} got unhandled event {!r}'.format (self, item))
 

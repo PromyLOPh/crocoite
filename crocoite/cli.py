@@ -22,13 +22,14 @@
 Command line interface
 """
 
-import logging, argparse, json, sys
+import argparse, json, sys
 
 from . import behavior
 from .controller import RecursiveController, defaultSettings, \
         ControllerSettings, DepthLimit, PrefixLimit, StatsHandler
 from .browser import NullService, ChromeService
 from .warc import WarcHandler
+from .logger import Logger, JsonPrintConsumer, DatetimeConsumer, WarcHandlerConsumer
 
 def parseRecursive (recursive, url):
     if recursive is None:
@@ -42,7 +43,6 @@ def parseRecursive (recursive, url):
 
 def main ():
     parser = argparse.ArgumentParser(description='Save website to WARC using Google Chrome.')
-    parser.add_argument('--debug', help='Enable debug messages', action='store_true')
     parser.add_argument('--browser', help='DevTools URL', metavar='URL')
     parser.add_argument('--recursive', help='Follow links recursively')
     parser.add_argument('--concurrency', '-j', type=int, default=1)
@@ -73,8 +73,7 @@ def main ():
                 recursive=args.recursive, concurrency=args.concurrency)
         r = result.get ()
     else:
-        level = logging.DEBUG if args.debug else logging.INFO
-        logging.basicConfig (level=level)
+        logger = Logger (consumer=[DatetimeConsumer (), JsonPrintConsumer ()])
 
         try:
             recursionPolicy = parseRecursive (args.recursive, args.url)
@@ -86,15 +85,16 @@ def main ():
         settings = ControllerSettings (maxBodySize=args.maxBodySize,
                 logBuffer=args.logBuffer, idleTimeout=args.idleTimeout,
                 timeout=args.timeout)
-        with open (args.output, 'wb') as fd:
-            handler = [StatsHandler (), WarcHandler (fd)]
+        with open (args.output, 'wb') as fd, WarcHandler (fd, logger) as warcHandler:
+            logger.connect (WarcHandlerConsumer (warcHandler))
+            handler = [StatsHandler (), warcHandler]
             b = list (map (lambda x: behavior.availableMap[x], args.enabledBehaviorNames))
             controller = RecursiveController (args.url, fd, settings=settings,
                     recursionPolicy=recursionPolicy, service=service,
-                    handler=handler, behavior=b)
+                    handler=handler, behavior=b, logger=logger)
             controller.run ()
             r = handler[0].stats
-    json.dump (r, sys.stdout)
+            logger.info ('stats', context='cli', uuid='24d92d16-770e-4088-b769-4020e127a7ff', **r)
 
     return True
 

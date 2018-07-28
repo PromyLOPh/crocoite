@@ -22,12 +22,12 @@
 Chrome browser interactions.
 """
 
-import logging
 from urllib.parse import urlsplit
 from base64 import b64decode
 from collections import deque
 from threading import Event
 from http.server import BaseHTTPRequestHandler
+from .logger import Level
 
 import pychrome
 
@@ -174,11 +174,11 @@ class SiteLoader:
     __slots__ = ('requests', 'browser', 'url', 'logger', 'queue', 'notify', 'tab')
     allowedSchemes = {'http', 'https'}
 
-    def __init__ (self, browser, url, logger=logging.getLogger(__name__)):
+    def __init__ (self, browser, url, logger):
         self.requests = {}
         self.browser = pychrome.Browser (url=browser)
         self.url = url
-        self.logger = logger
+        self.logger = logger.bind (context=type (self).__name__, url=url)
         self.queue = deque ()
         self.notify = Event ()
 
@@ -236,6 +236,7 @@ class SiteLoader:
     def _requestWillBeSent (self, **kwargs):
         reqId = kwargs['requestId']
         req = kwargs['request']
+        logger = self.logger.bind (reqId=reqId, reqUrl=req['url'])
 
         url = urlsplit (req['url'])
         if url.scheme not in self.allowedSchemes:
@@ -252,14 +253,15 @@ class SiteLoader:
                 resp = {'requestId': reqId, 'encodedDataLength': 0, 'timestamp': kwargs['timestamp']}
                 item.setFinished (resp)
                 item.isRedirect = True
-                self.logger.info ('redirected request {} has url {}'.format (reqId, req['url']))
+                logger.info ('redirect', uuid='85eaec41-e2a9-49c2-9445-6f19690278b8', target=req['url'])
                 self._append (item)
             else:
-                self.logger.warning ('request {} already exists, overwriting.'.format (reqId))
+                logger.warning ('request exists', uuid='2c989142-ba00-4791-bb03-c2a14e91a56b')
 
         item = Item (self.tab)
         item.setRequest (kwargs)
         self.requests[reqId] = item
+        logger.debug ('request', uuid='55c17564-1bd0-4499-8724-fa7aad65478f')
 
     def _responseReceived (self, **kwargs):
         reqId = kwargs['requestId']
@@ -268,12 +270,13 @@ class SiteLoader:
             return
 
         resp = kwargs['response']
+        logger = self.logger.bind (reqId=reqId, respUrl=resp['url'])
         url = urlsplit (resp['url'])
         if url.scheme in self.allowedSchemes:
-            self.logger.info ('response {} {}'.format (reqId, resp['url']))
+            logger.debug ('response', uuid='84461c4e-e8ef-4cbd-8e8e-e10a901c8bd0')
             item.setResponse (kwargs)
         else:
-            self.logger.warning ('response: ignoring scheme {}'.format (url.scheme))
+            logger.warning ('scheme forbidden', uuid='2ea6e5d7-dd3b-4881-b9de-156c1751c666')
 
     def _loadingFinished (self, **kwargs):
         """
@@ -286,17 +289,22 @@ class SiteLoader:
             # we never recorded this request (blacklisted scheme, for example)
             return
         req = item.request
+        logger = self.logger.bind (reqId=reqId, reqUrl=req['url'])
         resp = item.response
-        assert req['url'] == resp['url'], 'req and resp urls are not the same {} vs {}'.format (req['url'], resp['url'])
+        if req['url'] != resp['url']:
+            logger.error ('url mismatch', uuid='7385f45f-0b06-4cbc-81f9-67bcd72ee7d0', respUrl=resp['url'])
         url = urlsplit (resp['url'])
         if url.scheme in self.allowedSchemes:
-            self.logger.info ('finished {} {}'.format (reqId, req['url']))
+            logger.info ('finished', uuid='5a8b4bad-f86a-4fe6-a53e-8da4130d6a02')
             item.setFinished (kwargs)
             self._append (item)
 
     def _loadingFailed (self, **kwargs):
         reqId = kwargs['requestId']
-        self.logger.warning ('failed {} {}'.format (reqId, kwargs['errorText'], kwargs.get ('blockedReason')))
+        self.logger.warning ('loading failed',
+                uuid='68410f13-6eea-453e-924e-c1af4601748b',
+                errorText=kwargs['errorText'],
+                blockedReason=kwargs.get ('blockedReason'))
         item = self.requests.pop (reqId, None)
         item.failed = True
         self._append (item)
@@ -304,25 +312,29 @@ class SiteLoader:
     def _entryAdded (self, **kwargs):
         """ Log entry added """
         entry = kwargs['entry']
-        level = {'verbose': logging.DEBUG, 'info': logging.INFO,
-                'warning': logging.WARNING,
-                'error': logging.ERROR}[entry['level']]
-        self.logger.log (level, 'console: {}: {}'.format (entry['source'], entry['text']), extra={'raw': entry})
+        level = {'verbose': Level.DEBUG, 'info': Level.INFO,
+                'warning': Level.WARNING,
+                'error': Level.ERROR}.get (entry.pop ('level'), Level.INFO)
+        self.logger (level, 'console', **entry)
 
     def _javascriptDialogOpening (self, **kwargs):
         t = kwargs.get ('type')
         if t in {'alert', 'confirm', 'prompt'}:
-            self.logger.info ('javascript opened a dialog: {}, {}, canceling'.format (t, kwargs.get ('message')))
+            self.logger.info ('js dialog',
+                    uuid='d6f07ce2-648e-493b-a1df-f353bed27c84',
+                    action='cancel', type=t, message=kwargs.get ('message'))
             self.tab.Page.handleJavaScriptDialog (accept=False)
         elif t == 'beforeunload':
             # we must accept this one, otherwise the page will not unload/close
-            self.logger.info ('javascript opened a dialog: {}, {}, procceeding'.format (t, kwargs.get ('message')))
+            self.logger.info ('js dialog',
+                    uuid='96399b99-9834-4c8f-bd93-cb9fa2225abd',
+                    action='proceed', type=t, message=kwargs.get ('message'))
             self.tab.Page.handleJavaScriptDialog (accept=True)
         else:
-            self.logger.warning ('unknown javascript dialog type {}'.format (t))
+            self.logger.warning ('js dialog unknown', uuid='3ef7292e-8595-4e89-b834-0cc6bc40ee38', **kwargs)
 
     def _targetCrashed (self, **kwargs):
-        self.logger.error ('browser crashed')
+        self.logger.error ('browser crashed', uuid='6fe2b3be-ff01-4503-b30c-ad6aeea953ef')
         # priority message
         self._appendleft (BrowserCrashed ())
 
