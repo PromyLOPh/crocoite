@@ -38,7 +38,7 @@ from .browser import Item
 
 class WarcHandler (EventHandler):
     __slots__ = ('logger', 'writer', 'maxBodySize', 'documentRecords', 'log',
-            'maxLogSize', 'logEncoding')
+            'maxLogSize', 'logEncoding', 'warcinfoRecordId')
 
     def __init__ (self, fd,
             logger,
@@ -55,6 +55,8 @@ class WarcHandler (EventHandler):
         # maps document urls to WARC record ids, required for DomSnapshotEvent
         # and ScreenshotEvent
         self.documentRecords = {}
+        # record id of warcinfo record
+        self.warcinfoRecordId = None
 
     def __enter__ (self):
         return self
@@ -62,8 +64,26 @@ class WarcHandler (EventHandler):
     def __exit__(self, exc_type, exc_value, traceback):
         self._flushLogEntries ()
 
+    def writeRecord (self, url, kind, payload, warc_headers_dict=None, http_headers=None):
+        """
+        Thin wrapper around writer.create_warc_record and writer.write_record.
+
+        Adds default WARC headers.
+        """
+
+        d = {}
+        if self.warcinfoRecordId:
+            d['WARC-Warcinfo-ID'] = self.warcinfoRecordId
+        d.update (warc_headers_dict)
+        warc_headers_dict = d
+
+        record = self.writer.create_warc_record (url, kind, payload=payload,
+                warc_headers_dict=warc_headers_dict, http_headers=http_headers)
+        self.writer.write_record (record)
+
+        return record
+
     def _writeRequest (self, item):
-        writer = self.writer
 
         req = item.request
         resp = item.response
@@ -83,11 +103,9 @@ class WarcHandler (EventHandler):
         if payload:
             payload = BytesIO (payload)
             warcHeaders['X-Chrome-Base64Body'] = str (payloadBase64Encoded)
-        record = writer.create_warc_record(req['url'], 'request',
+        record = self.writeRecord (req['url'], 'request',
                 payload=payload, http_headers=httpHeaders,
                 warc_headers_dict=warcHeaders)
-        writer.write_record(record)
-
         return record.rec_headers['WARC-Record-ID']
 
     def _writeResponse (self, item, concurrentTo):
@@ -154,11 +172,9 @@ class WarcHandler (EventHandler):
         else:
             bodyIo = BytesIO ()
 
-        writer = self.writer
-        record = writer.create_warc_record(resp['url'], 'response',
+        record = self.writeRecord (resp['url'], 'response',
                 warc_headers_dict=warcHeaders, payload=bodyIo,
                 http_headers=httpHeaders)
-        writer.write_record(record)
 
         if item.resourceType == 'Document':
             self.documentRecords[item.url] = record.rec_headers.get_header ('WARC-Record-ID')
@@ -166,10 +182,9 @@ class WarcHandler (EventHandler):
     def _writeScript (self, item):
         writer = self.writer
         encoding = 'utf-8'
-        record = writer.create_warc_record (packageUrl ('script/{}'.format (item.path)), 'metadata',
+        self.writeRecord (packageUrl ('script/{}'.format (item.path)), 'metadata',
                 payload=BytesIO (str (item).encode (encoding)),
                 warc_headers_dict={'Content-Type': 'application/javascript; charset={}'.format (encoding)})
-        writer.write_record (record)
 
     def _writeItem (self, item):
         if item.failed:
@@ -197,36 +212,33 @@ class WarcHandler (EventHandler):
 
         self._addRefersTo (warcHeaders, item.url)
 
-        record = writer.create_warc_record (item.url, 'conversion',
+        self.writeRecord (item.url, 'conversion',
                 payload=BytesIO (item.document),
                 warc_headers_dict=warcHeaders)
-        writer.write_record (record)
 
     def _writeScreenshot (self, item):
         writer = self.writer
         warcHeaders = {'Content-Type': 'image/png',
                 'X-Crocoite-Screenshot-Y-Offset': str (item.yoff)}
         self._addRefersTo (warcHeaders, item.url)
-        record = writer.create_warc_record (item.url, 'conversion',
+        self.writeRecord (item.url, 'conversion',
                 payload=BytesIO (item.data), warc_headers_dict=warcHeaders)
-        writer.write_record (record)
 
     def _writeControllerStart (self, item):
         payload = BytesIO (json.dumps (item.payload, indent=2).encode ('utf-8'))
 
         writer = self.writer
-        warcinfo = writer.create_warc_record (packageUrl ('warcinfo'), 'warcinfo',
+        warcinfo = self.writeRecord (packageUrl ('warcinfo'), 'warcinfo',
                 warc_headers_dict={'Content-Type': 'text/plain; encoding=utf-8'},
                 payload=payload)
-        writer.write_record (warcinfo)
+        self.warcinfoRecordId = warcinfo.rec_headers['WARC-Record-ID']
 
     def _flushLogEntries (self):
         writer = self.writer
         self.log.seek (0)
         # XXX: we should use the type continuation here
-        record = writer.create_warc_record (packageUrl ('log'), 'resource', payload=self.log,
+        self.writeRecord (packageUrl ('log'), 'resource', payload=self.log,
                 warc_headers_dict={'Content-Type': 'text/plain; encoding={}'.format (self.logEncoding)})
-        writer.write_record (record)
         self.log = BytesIO ()
 
     def _writeLog (self, item):
