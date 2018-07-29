@@ -70,11 +70,11 @@ class StatsHandler (EventHandler):
         elif isinstance (item, BrowserCrashed):
             self.stats['crashed'] += 1
 
-import time
+import time, platform
 
 from . import behavior as cbehavior
 from .browser import ChromeService, SiteLoader, Item
-from .util import getFormattedViewportMetrics, removeFragment
+from .util import getFormattedViewportMetrics, removeFragment, getRequirements
 
 class ControllerStart:
     __slots__ = ('payload')
@@ -163,10 +163,20 @@ class SinglePageController:
 
             version = l.tab.Browser.getVersion ()
             payload = {
-                    'software': __package__,
-                    'browser': version['product'],
-                    'useragent': version['userAgent'],
-                    'viewport': getFormattedViewportMetrics (l.tab),
+                    'software': {
+                        'platform': platform.platform (),
+                        'python': {
+                            'implementation': platform.python_implementation(),
+                            'version': platform.python_version (),
+                            'build': platform.python_build ()
+                            },
+                        'self': getRequirements (__package__)
+                        },
+                    'browser': {
+                        'product': version['product'],
+                        'useragent': version['userAgent'],
+                        'viewport': getFormattedViewportMetrics (l.tab),
+                        },
                     }
             self.processItem (ControllerStart (payload))
 

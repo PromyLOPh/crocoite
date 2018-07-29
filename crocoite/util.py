@@ -22,7 +22,8 @@
 Random utility functions
 """
 
-import random
+import random, sys
+import hashlib, os, pkg_resources
 from urllib.parse import urlsplit, urlunsplit
 
 def randomString (length=None, chars='abcdefghijklmnopqrstuvwxyz'):
@@ -46,4 +47,46 @@ def removeFragment (u):
     """ Remove fragment from url (i.e. #hashvalue) """
     s = urlsplit (u)
     return urlunsplit ((s.scheme, s.netloc, s.path, s.query, ''))
+
+def getRequirements (dist):
+    """ Get dependencies of a package.
+
+    Figure out packages’ dependencies based on setup/distutils, then look at
+    modules loaded and compute hashes of each loaded dependency.
+
+    This does not and cannot protect against malicious people. It’s only
+    purpose is to recreate this exact environment.
+    """
+
+    pending = {dist}
+    have = set ()
+    packages = []
+    while pending:
+        d = pkg_resources.get_distribution (pending.pop ())
+
+        modules = list (filter (lambda x: x, d.get_metadata ('top_level.txt').split ('\n')))
+        modhashes = {}
+        # hash loaded modules
+        for m in sys.modules.values ():
+            f = getattr (m, '__file__', None)
+            pkg = getattr (m, '__package__', None)
+            # is loaded?
+            if pkg in modules:
+                if f:
+                    with open (f, 'rb') as fd:
+                        contents = fd.read ()
+                        h = hashlib.new ('sha512')
+                        h.update (contents)
+                        modhashes[m.__name__] = {'sha512': h.hexdigest (), 'len': len (contents)}
+                else:
+                    modhashes[m.__name__] = {}
+
+        # only if one of the packages’ modules is actually loaded
+        if modhashes:
+            packages.append ({'projectName': d.project_name, 'modules': modhashes, 'version': d.version})
+
+        have.add (dist)
+        pending.update (d.requires ())
+        pending.difference_update (have)
+    return packages
 

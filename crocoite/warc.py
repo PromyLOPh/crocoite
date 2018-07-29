@@ -212,8 +212,12 @@ class WarcHandler (EventHandler):
         writer.write_record (record)
 
     def _writeControllerStart (self, item):
+        payload = BytesIO (json.dumps (item.payload, indent=2).encode ('utf-8'))
+
         writer = self.writer
-        warcinfo = writer.create_warcinfo_record (filename=None, info=item.payload)
+        warcinfo = writer.create_warc_record (packageUrl ('warcinfo'), 'warcinfo',
+                warc_headers_dict={'Content-Type': 'text/plain; encoding=utf-8'},
+                payload=payload)
         writer.write_record (warcinfo)
 
     def _flushLogEntries (self):
