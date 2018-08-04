@@ -29,18 +29,23 @@ from .logger import Logger, Consumer
 class TItem (Item):
     """ This should be as close to Item as possible """
 
-    __slots__ = ('bodySend', '_body')
+    __slots__ = ('bodySend', '_body', '_requestBody')
     base = 'http://localhost:8000/'
 
-    def __init__ (self, path, status, headers, bodyReceive, bodySend=None):
+    def __init__ (self, path, status, headers, bodyReceive, bodySend=None, requestBody=None):
         super ().__init__ (tab=None)
         self.chromeResponse = {'response': {'headers': headers, 'status': status, 'url': self.base + path}}
         self._body = bodyReceive, False
         self.bodySend = bodyReceive if not bodySend else bodySend
+        self._requestBody = requestBody, False
 
     @property
     def body (self):
         return self._body
+
+    @property
+    def requestBody (self):
+        return self._requestBody
 
 testItems = [
     TItem ('binary', 200, {'Content-Type': 'application/octet-stream'}, b'\x00\x01\x02'),
@@ -68,6 +73,18 @@ testItems = [
             '<html><body><img src="/image"><img src="/nonexistent"></body></html>'.encode ('utf8')),
     TItem ('html/alert', 200, {'Content-Type': 'html'},
             '<html><body><script>window.addEventListener("beforeunload", function (e) { e.returnValue = "bye?"; return e.returnValue; }); alert("stopping here"); if (confirm("are you sure?") || prompt ("42?")) { window.location = "/nonexistent"; }</script><img src="/image"></body></html>'.encode ('utf8')),
+    TItem ('html/fetchPost', 200, {'Content-Type': 'html'},
+            r"""<html><body><script>
+            let a = fetch("/html/fetchPost/binary", {"method": "POST", "body": "\x00"});
+            let b = fetch("/html/fetchPost/form", {"method": "POST", "body": new URLSearchParams({"data": "!"})});
+            let c = fetch("/html/fetchPost/binary/large", {"method": "POST", "body": "\x00".repeat(100*1024)});
+            let d = fetch("/html/fetchPost/form/large", {"method": "POST", "body": new URLSearchParams({"data": "!".repeat(100*1024)})});
+            </script></body></html>""".encode ('utf8')),
+    TItem ('html/fetchPost/binary', 200, {'Content-Type': 'application/octet-stream'}, b'\x00', requestBody=b'\x00'),
+    TItem ('html/fetchPost/form', 200, {'Content-Type': 'application/octet-stream'}, b'\x00', requestBody=b'data=%21'),
+    # XXX: these should trigger the need for getRequestPostData, but they don’t. oh well.
+    TItem ('html/fetchPost/binary/large', 200, {'Content-Type': 'application/octet-stream'}, b'\x00', requestBody=(100*1024)*b'\x00'),
+    TItem ('html/fetchPost/form/large', 200, {'Content-Type': 'application/octet-stream'}, b'\x00', requestBody=b'data=' + (100*1024)*b'%21'),
     ]
 testItemMap = dict ([(item.parsedUrl.path, item) for item in testItems])
 
@@ -83,7 +100,9 @@ class RequestHandler (BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write (body)
         return
-            
+
+    do_POST = do_GET
+
     def log_message (self, format, *args):
         pass
 
@@ -134,11 +153,13 @@ def itemsLoaded (l, items):
             item = l.queue.popleft ()
             if isinstance (item, Exception):
                 raise item
+            assert not item.failed
             assert item.chromeResponse is not None
             golden = items.pop (item.parsedUrl.path)
             if not golden:
                 assert False, 'url {} not supposed to be fetched'.format (item.url)
             assert item.body[0] == golden.body[0]
+            assert item.requestBody[0] == golden.requestBody[0]
             assert item.response['status'] == golden.response['status']
             assert item.statusText == BaseHTTPRequestHandler.responses.get (item.response['status'])[0]
             for k, v in golden.responseHeaders:
@@ -188,6 +209,14 @@ def test_html (loader):
     literalItem (loader, testItemMap['/html'], [testItemMap['/image'], testItemMap['/nonexistent']])
     # make sure alerts are dismissed correctly (image won’t load otherwise)
     literalItem (loader, testItemMap['/html/alert'], [testItemMap['/image']])
+
+def test_post (loader):
+    """ XHR POST request with binary data"""
+    literalItem (loader, testItemMap['/html/fetchPost'],
+            [testItemMap['/html/fetchPost/binary'],
+            testItemMap['/html/fetchPost/binary/large'],
+            testItemMap['/html/fetchPost/form'],
+            testItemMap['/html/fetchPost/form/large']])
 
 def test_crash (loader):
     with loader ('/html') as l:

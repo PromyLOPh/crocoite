@@ -84,6 +84,7 @@ class WarcHandler (EventHandler):
         return record
 
     def _writeRequest (self, item):
+        logger = self.logger.bind (reqId=item.id)
 
         req = item.request
         resp = item.response
@@ -97,9 +98,21 @@ class WarcHandler (EventHandler):
         initiator = item.initiator
         warcHeaders = {
                 'X-Chrome-Initiator': json.dumps (initiator),
+                'X-Chrome-Request-ID': item.id,
                 'WARC-Date': datetime_to_iso_date (datetime.utcfromtimestamp (item.chromeRequest['wallTime'])),
                 }
-        payload, payloadBase64Encoded = item.requestBody
+        try:
+            bodyTruncated = None
+            payload, payloadBase64Encoded = item.requestBody
+        except ValueError:
+            # oops, don’t know what went wrong here
+            bodyTruncated = 'unspecified'
+            logger.error ('requestBody missing', uuid='ee9adc58-e723-4595-9feb-312a67ead6a0')
+
+        if bodyTruncated:
+            warcHeaders['WARC-Truncated'] = bodyTruncated
+            payload = None
+
         if payload:
             payload = BytesIO (payload)
             warcHeaders['X-Chrome-Base64Body'] = str (payloadBase64Encoded)
@@ -139,6 +152,7 @@ class WarcHandler (EventHandler):
                 'X-Chrome-Protocol': resp.get ('protocol', ''),
                 'X-Chrome-FromDiskCache': str (resp.get ('fromDiskCache')),
                 'X-Chrome-ConnectionReused': str (resp.get ('connectionReused')),
+                'X-Chrome-Request-ID': item.id,
                 'WARC-Date': datetime_to_iso_date (datetime.utcfromtimestamp (
                         item.chromeRequest['wallTime']+
                         (item.chromeResponse['timestamp']-item.chromeRequest['timestamp']))),

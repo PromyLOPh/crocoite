@@ -103,7 +103,8 @@ class Item:
             return postData.encode ('utf8'), False
         elif req.get ('hasPostData', False):
             try:
-                return b64decode (self.tab.Network.getRequestPostData (requestId=self.id, _timeout=10)['postData']), True
+                postData = self.tab.Network.getRequestPostData (requestId=self.id, _timeout=10)['postData']
+                return b64decode (postData), True
             except (pychrome.exceptions.CallMethodException, pychrome.exceptions.TimeoutException):
                 raise ValueError ('Cannot fetch request body')
         return None, False
@@ -315,6 +316,7 @@ class SiteLoader:
         level = {'verbose': Level.DEBUG, 'info': Level.INFO,
                 'warning': Level.WARNING,
                 'error': Level.ERROR}.get (entry.pop ('level'), Level.INFO)
+        entry['uuid'] = 'e62ffb5a-0521-459c-a3d9-1124551934d2'
         self.logger (level, 'console', **entry)
 
     def _javascriptDialogOpening (self, **kwargs):
