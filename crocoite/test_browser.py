@@ -32,12 +32,13 @@ class TItem (Item):
     __slots__ = ('bodySend', '_body', '_requestBody')
     base = 'http://localhost:8000/'
 
-    def __init__ (self, path, status, headers, bodyReceive, bodySend=None, requestBody=None):
+    def __init__ (self, path, status, headers, bodyReceive, bodySend=None, requestBody=None, failed=False):
         super ().__init__ (tab=None)
         self.chromeResponse = {'response': {'headers': headers, 'status': status, 'url': self.base + path}}
         self._body = bodyReceive, False
         self.bodySend = bodyReceive if not bodySend else bodySend
         self._requestBody = requestBody, False
+        self.failed = failed
 
     @property
     def body (self):
@@ -48,12 +49,12 @@ class TItem (Item):
         return self._requestBody
 
 testItems = [
-    TItem ('binary', 200, {'Content-Type': 'application/octet-stream'}, b'\x00\x01\x02'),
+    TItem ('binary', 200, {'Content-Type': 'application/octet-stream'}, b'\x00\x01\x02', failed=True),
     TItem ('attachment', 200, 
             {'Content-Type': 'text/plain; charset=utf-8',
             'Content-Disposition': 'attachment; filename="attachment.txt"',
             },
-            'This is a simple text file with umlauts. ÄÖU.'.encode ('utf8')),
+            'This is a simple text file with umlauts. ÄÖU.'.encode ('utf8'), failed=True),
     TItem ('encoding/utf8', 200, {'Content-Type': 'text/plain; charset=utf-8'},
             'This is a test, äöü μνψκ ¥¥¥¿ýý¡'.encode ('utf8')),
     TItem ('encoding/iso88591', 200, {'Content-Type': 'text/plain; charset=ISO-8859-1'},
@@ -153,11 +154,14 @@ def itemsLoaded (l, items):
             item = l.queue.popleft ()
             if isinstance (item, Exception):
                 raise item
-            assert not item.failed
             assert item.chromeResponse is not None
             golden = items.pop (item.parsedUrl.path)
             if not golden:
                 assert False, 'url {} not supposed to be fetched'.format (item.url)
+            assert item.failed == golden.failed
+            if item.failed:
+                # response will be invalid if request failed
+                continue
             assert item.body[0] == golden.body[0]
             assert item.requestBody[0] == golden.requestBody[0]
             assert item.response['status'] == golden.response['status']
@@ -191,9 +195,7 @@ def test_encoding (loader):
 
 def test_binary (loader):
     """ Browser should ignore content it cannot display (i.e. octet-stream) """
-    with loader ('/binary') as l:
-        l.start ()
-        itemsLoaded (l, [])
+    literalItem (loader, testItemMap['/binary'])
 
 def test_image (loader):
     """ Images should be displayed inline """
@@ -201,9 +203,7 @@ def test_image (loader):
 
 def test_attachment (loader):
     """ And downloads won’t work in headless mode, even if it’s just a text file """
-    with loader ('/attachment') as l:
-        l.start ()
-        itemsLoaded (l, [])
+    literalItem (loader, testItemMap['/attachment'])
 
 def test_html (loader):
     literalItem (loader, testItemMap['/html'], [testItemMap['/image'], testItemMap['/nonexistent']])

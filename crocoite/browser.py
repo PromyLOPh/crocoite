@@ -48,16 +48,15 @@ class Item:
         self.failed = False
 
     def __repr__ (self):
-        return '<Item {}>'.format (self.request['url'])
+        return '<Item {}>'.format (self.url)
 
     @property
     def request (self):
-        return self.chromeRequest['request']
+        return self.chromeRequest.get ('request', {})
 
     @property
     def response (self):
-        assert not self.failed, "you must not access response if failed is set"
-        return self.chromeResponse['response']
+        return self.chromeResponse.get ('response', {})
 
     @property
     def initiator (self):
@@ -73,7 +72,7 @@ class Item:
 
     @property
     def url (self):
-        return self.response['url']
+        return self.response.get ('url', self.request.get ('url'))
 
     @property
     def parsedUrl (self):
