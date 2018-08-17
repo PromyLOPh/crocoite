@@ -19,6 +19,10 @@ const sites = Object.freeze ([
 			{s: 'a.UFIPagerLink[role=button]', flags: selectorFlag.none},
 			/* show nested comments*/
 			{s: 'a.UFICommentLink[role=button]', flags: selectorFlag.none},
+			/* initially show comments below a single post/video, i.e. /user/post/123 */
+			{s: 'form.commentable_item a[data-comment-prelude-ref=action_link_bling][rel=ignore]', flags: selectorFlag.none},
+			/* close the “register now” nag screen. for better screen shots */
+			{s: 'div#headerArea a#expanding_cta_close_button[role=button]', flags: selectorFlag.none},
 			],
 	}, {
 		hostname: /^twitter\.com$/i,
