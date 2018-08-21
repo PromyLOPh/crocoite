@@ -25,76 +25,43 @@ Command line interface
 import argparse, json, sys
 
 from . import behavior
-from .controller import RecursiveController, defaultSettings, \
-        ControllerSettings, DepthLimit, PrefixLimit, StatsHandler
+from .controller import SinglePageController, defaultSettings, \
+        ControllerSettings, StatsHandler
 from .browser import NullService, ChromeService
 from .warc import WarcHandler
 from .logger import Logger, JsonPrintConsumer, DatetimeConsumer, WarcHandlerConsumer
 
-def parseRecursive (recursive, url):
-    if recursive is None:
-        return DepthLimit (0)
-    elif recursive.isdigit ():
-        return DepthLimit (int (recursive))
-    elif recursive == 'prefix':
-        return PrefixLimit (url)
-    else:
-        raise ValueError ('Unsupported')
-
-def main ():
+def single ():
     parser = argparse.ArgumentParser(description='Save website to WARC using Google Chrome.')
     parser.add_argument('--browser', help='DevTools URL', metavar='URL')
-    parser.add_argument('--recursive', help='Follow links recursively')
-    parser.add_argument('--concurrency', '-j', type=int, default=1)
     parser.add_argument('--timeout', default=10, type=int, help='Maximum time for archival', metavar='SEC')
     parser.add_argument('--idle-timeout', default=2, type=int, help='Maximum idle seconds (i.e. no requests)', dest='idleTimeout', metavar='SEC')
-    parser.add_argument('--log-buffer', default=defaultSettings.logBuffer, type=int, dest='logBuffer', metavar='LINES')
     parser.add_argument('--max-body-size', default=defaultSettings.maxBodySize, type=int, dest='maxBodySize', help='Max body size', metavar='BYTES')
     parser.add_argument('--behavior', help='Comma-separated list of enabled behavior scripts',
             dest='enabledBehaviorNames',
             default=list (behavior.availableMap.keys ()),
             choices=list (behavior.availableMap.keys ()))
-    group = parser.add_mutually_exclusive_group (required=True)
-    group.add_argument('--output', help='WARC filename', metavar='FILE')
-    group.add_argument('--distributed', help='Use celery worker', action='store_true')
-    parser.add_argument('url', help='Website URL')
+    parser.add_argument('url', help='Website URL', metavar='URL')
+    parser.add_argument('output', help='WARC filename', metavar='FILE')
 
     args = parser.parse_args ()
 
-    if args.distributed:
-        if args.browser:
-            parser.error ('--browser is not supported for distributed jobs')
-        from . import task
-        settings = dict (maxBodySize=args.maxBodySize,
-                logBuffer=args.logBuffer, idleTimeout=args.idleTimeout,
-                timeout=args.timeout)
-        result = task.controller.delay (url=args.url, settings=settings,
-                enabledBehaviorNames=args.enabledBehaviorNames,
-                recursive=args.recursive, concurrency=args.concurrency)
-        r = result.get ()
-    else:
-        logger = Logger (consumer=[DatetimeConsumer (), JsonPrintConsumer ()])
+    logger = Logger (consumer=[DatetimeConsumer (), JsonPrintConsumer ()])
 
-        try:
-            recursionPolicy = parseRecursive (args.recursive, args.url)
-        except ValueError:
-            parser.error ('Invalid argument for --recursive')
-        service = ChromeService ()
-        if args.browser:
-            service = NullService (args.browser)
-        settings = ControllerSettings (maxBodySize=args.maxBodySize,
-                logBuffer=args.logBuffer, idleTimeout=args.idleTimeout,
-                timeout=args.timeout)
-        with open (args.output, 'wb') as fd, WarcHandler (fd, logger) as warcHandler:
-            logger.connect (WarcHandlerConsumer (warcHandler))
-            handler = [StatsHandler (), warcHandler]
-            b = list (map (lambda x: behavior.availableMap[x], args.enabledBehaviorNames))
-            controller = RecursiveController (args.url, fd, settings=settings,
-                    recursionPolicy=recursionPolicy, service=service,
-                    handler=handler, behavior=b, logger=logger)
-            controller.run ()
-            r = handler[0].stats
-            logger.info ('stats', context='cli', uuid='24d92d16-770e-4088-b769-4020e127a7ff', **r)
+    service = ChromeService ()
+    if args.browser:
+        service = NullService (args.browser)
+    settings = ControllerSettings (maxBodySize=args.maxBodySize,
+            idleTimeout=args.idleTimeout, timeout=args.timeout)
+    with open (args.output, 'wb') as fd, WarcHandler (fd, logger) as warcHandler:
+        logger.connect (WarcHandlerConsumer (warcHandler))
+        handler = [StatsHandler (), warcHandler]
+        b = list (map (lambda x: behavior.availableMap[x], args.enabledBehaviorNames))
+        controller = SinglePageController (args.url, fd, settings=settings,
+                service=service, handler=handler, behavior=b, logger=logger)
+        controller.run ()
+        r = handler[0].stats
+        logger.info ('stats', context='cli', uuid='24d92d16-770e-4088-b769-4020e127a7ff', **r)
 
     return True
 

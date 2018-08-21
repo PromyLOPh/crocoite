@@ -13,11 +13,10 @@ setup(
         'pychrome',
         'warcio',
         'html5lib>=0.999999999',
-        'Celery',
     ],
     entry_points={
     'console_scripts': [
-            'crocoite-grab = crocoite.cli:main',
+            'crocoite-grab = crocoite.cli:single',
             'crocoite-merge-warc = crocoite.tools:mergeWarc',
             'crocoite-extract-screenshot = crocoite.tools:extractScreenshot',
             ],

@@ -17,12 +17,10 @@ The following dependencies must be present to run crocoite:
 - pychrome_ 
 - warcio_
 - html5lib_
-- Celery_ (optional)
 
 .. _pychrome: https://github.com/fate0/pychrome
 .. _warcio: https://github.com/webrecorder/warcio
 .. _html5lib: https://github.com/html5lib/html5lib-python
-.. _Celery: http://www.celeryproject.org/
 
 It is recommended to prepare a virtualenv and let pip handle the dependency
 resolution for Python packages instead:
@@ -120,65 +118,6 @@ displayed without executing scripts.  Obviously JavaScript-based navigation
 does not work any more. Secondly it also saves a screenshot of the full page,
 so even if future browsers cannot render and display the stored HTML a fully
 rendered version of the website can be replayed instead.
-
-Advanced usage
---------------
-
-crocoite offers more than just a one-shot command-line interface.
-
-Distributed crawling
-^^^^^^^^^^^^^^^^^^^^
-
-Configure using celeryconfig.py
-
-.. code:: python
-
-    broker_url = 'pyamqp://'
-    result_backend = 'rpc://'
-    warc_filename = '{domain}-{date}-{id}.warc.gz'
-    temp_dir = '/tmp/'
-    finished_dir = '/tmp/finished'
-
-Start a Celery worker::
-
-    celery -A crocoite.task worker -Q crocoite.archive,crocoite.controller --loglevel=info
-
-Then queue archive job::
-
-    crocoite-grab --distributed http://example.com
-
-The worker will create a temporary file named according to ``warc_filename`` in
-``/tmp`` while archiving and move it to ``/tmp/finished`` when done.
-
-IRC bot
-^^^^^^^
-
-Configure sopel_ (``~/.sopel/default.cfg``) to use the plugin located in
-``contrib/celerycrocoite.py``
-
-.. code:: ini
-
-    [core]
-    nick = chromebot
-    host = irc.efnet.fr
-    port = 6667
-    owner = someone
-    extra = /path/to/crocoite/contrib
-    enable = celerycrocoite
-    channels = #somechannel
-
-Then start it by running ``sopel``. The bot must be addressed directly (i.e.
-``chromebot: <command>``). The following commands are currently supported:
-
-a <url>
-    Archives <url> and all of its resources (images, css, …). A unique UID
-    (UUID) is assigned to each job.
-s <uuid>
-    Get status of job with <uuid>
-r <uuid>
-    Revoke job with <uuid>. If it started already the job will be killed.
-
-.. _sopel: https://sopel.chat/
 
 Related projects
 ----------------

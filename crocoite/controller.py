@@ -23,16 +23,15 @@ Controller classes, handling actions required for archival
 """
 
 class ControllerSettings:
-    __slots__ = ('logBuffer', 'maxBodySize', 'idleTimeout', 'timeout')
+    __slots__ = ('maxBodySize', 'idleTimeout', 'timeout')
 
-    def __init__ (self, logBuffer=1000, maxBodySize=50*1024*1024, idleTimeout=2, timeout=10):
-        self.logBuffer = logBuffer
+    def __init__ (self, maxBodySize=50*1024*1024, idleTimeout=2, timeout=10):
         self.maxBodySize = maxBodySize
         self.idleTimeout = idleTimeout
         self.timeout = timeout
 
     def toDict (self):
-        return dict (logBuffer=self.logBuffer, maxBodySize=self.maxBodySize,
+        return dict (maxBodySize=self.maxBodySize,
                 idleTimeout=self.idleTimeout, timeout=self.timeout)
 
 defaultSettings = ControllerSettings ()
@@ -206,118 +205,4 @@ class SinglePageController:
                     self.processItem (item)
 
             processQueue ()
-
-class RecursionPolicy:
-    """ Abstract recursion policy """
-
-    __slots__ = ()
-
-    def __call__ (self, urls):
-        raise NotImplementedError
-
-class DepthLimit (RecursionPolicy):
-    """
-    Limit recursion by depth.
-    
-    depth==0 means no recursion, depth==1 is the page and outgoing links, …
-    """
-
-    __slots__ = ('maxdepth')
-
-    def __init__ (self, maxdepth=0):
-        self.maxdepth = maxdepth
-
-    def __call__ (self, urls):
-        if self.maxdepth <= 0:
-            return {}
-        else:
-            self.maxdepth -= 1
-            return urls
-
-    def __repr__ (self):
-        return '<DepthLimit {}>'.format (self.maxdepth)
-
-class PrefixLimit (RecursionPolicy):
-    """
-    Limit recursion by prefix
-    
-    i.e. prefix=http://example.com/foo
-    ignored: http://example.com/bar http://offsite.example/foo
-    accepted: http://example.com/foobar http://example.com/foo/bar
-    """
-
-    __slots__ = ('prefix')
-
-    def __init__ (self, prefix):
-        self.prefix = prefix
-
-    def __call__ (self, urls):
-        return set (filter (lambda u: u.startswith (self.prefix), urls))
-
-from .behavior import ExtractLinksEvent
-
-class RecursiveController (EventHandler):
-    """
-    Simple recursive controller
-
-    Visits links acording to recursionPolicy
-    """
-
-    __slots__ = ('url', 'output', 'service', 'behavior', 'settings', 'logger',
-            'recursionPolicy', 'handler', 'urls', 'have')
-
-    def __init__ (self, url, output, logger,
-            service=ChromeService (), behavior=cbehavior.available, \
-            settings=defaultSettings, \
-            recursionPolicy=DepthLimit (0), handler=[]):
-        self.url = url
-        self.output = output
-        self.service = service
-        self.behavior = behavior
-        self.settings = settings
-        self.logger = logger.bind (context=type(self).__name__, url=url)
-        self.recursionPolicy = recursionPolicy
-        self.handler = handler
-        self.handler.append (self)
-
-    def fetch (self, urls):
-        """
-        Overrideable fetch action for URLs. Defaults to sequential
-        SinglePageController.
-        """
-        for u in urls:
-            try:
-                c = SinglePageController (url=u, output=self.output, service=self.service,
-                        behavior=self.behavior, logger=self.logger,
-                        settings=self.settings, handler=self.handler)
-                c.run ()
-            except BrowserCrashed:
-                # this is fine if reported
-                self.logger.error ('browser crashed', uuid='42582cbe-fb83-47ce-b330-d022a1c3b331')
-
-    def run (self):
-        self.have = set ()
-        self.urls = set ([self.url])
-
-        while self.urls:
-            self.logger.info ('recursing',
-                    uuid='5b8498e4-868d-413c-a67e-004516b8452c',
-                    numurls=len (self.urls))
-
-            self.have.update (self.urls)
-            fetchurls = self.urls
-            self.urls = set ()
-
-            # handler appends new urls to self.urls through push()
-            self.fetch (fetchurls)
-
-            # remove urls we have and apply recursion policy
-            self.urls.difference_update (self.have)
-            self.urls = self.recursionPolicy (self.urls)
-
-    def push (self, item):
-        if isinstance (item, ExtractLinksEvent):
-            self.logger.debug ('extracted links',
-                    uuid='8ee5e9c9-1130-4c5c-88ff-718508546e0c', links=item.links)
-            self.urls.update (map (removeFragment, item.links))
 
