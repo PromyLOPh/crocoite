@@ -26,7 +26,7 @@ import argparse, json, sys
 
 from . import behavior
 from .controller import SinglePageController, defaultSettings, \
-        ControllerSettings, StatsHandler
+        ControllerSettings, StatsHandler, LogHandler
 from .browser import NullService, ChromeService
 from .warc import WarcHandler
 from .logger import Logger, JsonPrintConsumer, DatetimeConsumer, WarcHandlerConsumer
@@ -55,7 +55,7 @@ def single ():
             idleTimeout=args.idleTimeout, timeout=args.timeout)
     with open (args.output, 'wb') as fd, WarcHandler (fd, logger) as warcHandler:
         logger.connect (WarcHandlerConsumer (warcHandler))
-        handler = [StatsHandler (), warcHandler]
+        handler = [StatsHandler (), LogHandler (logger), warcHandler]
         b = list (map (lambda x: behavior.availableMap[x], args.enabledBehaviorNames))
         controller = SinglePageController (args.url, fd, settings=settings,
                 service=service, handler=handler, behavior=b, logger=logger)

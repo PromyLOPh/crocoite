@@ -69,6 +69,29 @@ class StatsHandler (EventHandler):
         elif isinstance (item, BrowserCrashed):
             self.stats['crashed'] += 1
 
+from .behavior import ExtractLinksEvent
+from itertools import islice
+
+class LogHandler (EventHandler):
+    """ Handle items by logging information about them """
+
+    __slots__ = ('logger')
+
+    def __init__ (self, logger):
+        self.logger = logger.bind (context=type (self).__name__)
+
+    def push (self, item):
+        if isinstance (item, ExtractLinksEvent):
+            # limit number of links per message, so json blob won’t get too big
+            it = iter (item.links)
+            limit = 100
+            while True:
+                limitlinks = list (islice (it, 0, limit))
+                if not limitlinks:
+                    break
+                self.logger.info ('extracted links', context=type (item).__name__,
+                        uuid='8ee5e9c9-1130-4c5c-88ff-718508546e0c', links=limitlinks)
+
 import time, platform
 
 from . import behavior as cbehavior
