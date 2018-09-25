@@ -97,6 +97,7 @@ class PrintConsumer (Consumer):
     def __call__ (self, **kwargs):
         sys.stderr.write (str (kwargs))
         sys.stderr.write ('\n')
+        sys.stderr.flush ()
         return kwargs
 
 class JsonEncoder (json.JSONEncoder):
@@ -118,6 +119,7 @@ class JsonPrintConsumer (Consumer):
         if kwargs['level'] >= self.minLevel:
             json.dump (kwargs, sys.stdout, cls=JsonEncoder)
             sys.stdout.write ('\n')
+            sys.stdout.flush ()
         return kwargs
 
 class DatetimeConsumer (Consumer):
