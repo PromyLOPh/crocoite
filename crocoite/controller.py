@@ -290,10 +290,10 @@ class RecursiveController:
     """
 
     __slots__ = ('url', 'output', 'command', 'logger', 'policy', 'have',
-            'pending', 'stats', 'prefix', 'tempdir')
+            'pending', 'stats', 'prefix', 'tempdir', 'running', 'concurrency')
 
     def __init__ (self, url, output, command, logger, prefix='{host}-{date}-',
-            tempdir=None, policy=DepthLimit (0)):
+            tempdir=None, policy=DepthLimit (0), concurrency=1):
         self.url = url
         self.output = output
         self.command = command
@@ -301,6 +301,10 @@ class RecursiveController:
         self.logger = logger.bind (context=type(self).__name__, seedurl=url)
         self.policy = policy
         self.tempdir = tempdir
+        # tasks currently running
+        self.running = set ()
+        # max number of tasks running
+        self.concurrency = concurrency
         # keep in sync with StatsHandler
         self.stats = {'requests': 0, 'finished': 0, 'failed': 0, 'bytesRcv': 0, 'crashed': 0}
 
@@ -350,10 +354,16 @@ class RecursiveController:
         while self.pending:
             self.logger.info ('recursing',
                     uuid='5b8498e4-868d-413c-a67e-004516b8452c',
-                    pending=len (self.pending), have=len (self.have))
+                    pending=len (self.pending), have=len (self.have),
+                    running=len (self.running))
 
             # since pending is a set this picks a random item, which is fine
             u = self.pending.pop ()
             self.have.add (u)
-            await self.fetch (u)
+            t = asyncio.ensure_future (self.fetch (u))
+            self.running.add (t)
+            if len (self.running) >= self.concurrency or not self.pending:
+                done, pending = await asyncio.wait (self.running,
+                        return_when=asyncio.FIRST_COMPLETED)
+                self.running.difference_update (done)
 

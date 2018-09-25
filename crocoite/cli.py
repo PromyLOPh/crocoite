@@ -85,6 +85,7 @@ def recursive ():
     parser.add_argument('--policy', help='Recursion policy', metavar='POLICY')
     parser.add_argument('--tempdir', help='Directory for temporary files', metavar='DIR')
     parser.add_argument('--prefix', help='Output filename prefix, supports templates {host} and {date}', metavar='FILENAME', default='{host}-{date}-')
+    parser.add_argument('--concurrency', '-j', help='Run at most N jobs', metavar='N', default=1, type=int)
     parser.add_argument('url', help='Seed URL', metavar='URL')
     parser.add_argument('output', help='Output directory', metavar='DIR')
     parser.add_argument('command', help='Fetch command, supports templates {url} and {dest}', metavar='CMD', nargs='*', default=['crocoite-grab', '{url}', '{dest}'])
@@ -99,7 +100,8 @@ def recursive ():
 
     controller = RecursiveController (url=args.url, output=args.output,
             command=args.command, logger=logger, policy=policy,
-            tempdir=args.tempdir, prefix=args.prefix)
+            tempdir=args.tempdir, prefix=args.prefix,
+            concurrency=args.concurrency)
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(controller.run ())
