@@ -292,6 +292,8 @@ class RecursiveController:
     __slots__ = ('url', 'output', 'command', 'logger', 'policy', 'have',
             'pending', 'stats', 'prefix', 'tempdir', 'running', 'concurrency')
 
+    SCHEME_WHITELIST = {'http', 'https'}
+
     def __init__ (self, url, output, command, logger, prefix='{host}-{date}-',
             tempdir=None, policy=DepthLimit (0), concurrency=1):
         self.url = url
@@ -306,7 +308,7 @@ class RecursiveController:
         # max number of tasks running
         self.concurrency = concurrency
         # keep in sync with StatsHandler
-        self.stats = {'requests': 0, 'finished': 0, 'failed': 0, 'bytesRcv': 0, 'crashed': 0}
+        self.stats = {'requests': 0, 'finished': 0, 'failed': 0, 'bytesRcv': 0, 'crashed': 0, 'ignored': 0}
 
     async def fetch (self, url):
         """
@@ -319,6 +321,12 @@ class RecursiveController:
 
         def formatPrefix (p):
             return p.format (host=urlparse (url).hostname, date=datetime.utcnow ().isoformat ())
+
+        if urlparse (url).scheme not in self.SCHEME_WHITELIST:
+            self.stats['ignored'] += 1
+            self.logger.warning ('scheme not whitelisted', url=url,
+                    uuid='57e838de-4494-4316-ae98-cd3a2ebf541b')
+            return
 
         dest = tempfile.NamedTemporaryFile (dir=self.tempdir,
                 prefix=formatPrefix (self.prefix), suffix='.warc.gz',
