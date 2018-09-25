@@ -65,3 +65,43 @@ def single ():
 
     return True
 
+import asyncio, os
+from .controller import RecursiveController, DepthLimit, PrefixLimit
+
+def parsePolicy (recursive, url):
+    if recursive is None:
+        return DepthLimit (0)
+    elif recursive.isdigit ():
+        return DepthLimit (int (recursive))
+    elif recursive == 'prefix':
+        return PrefixLimit (url)
+    else:
+        raise ValueError ('Unsupported')
+
+def recursive ():
+    logger = Logger (consumer=[DatetimeConsumer (), JsonPrintConsumer ()])
+
+    parser = argparse.ArgumentParser(description='Recursively run crocoite-grab.')
+    parser.add_argument('--policy', help='Recursion policy', metavar='POLICY')
+    parser.add_argument('--tempdir', help='Directory for temporary files', metavar='DIR')
+    parser.add_argument('--prefix', help='Output filename prefix, supports templates {host} and {date}', metavar='FILENAME', default='{host}-{date}-')
+    parser.add_argument('url', help='Seed URL', metavar='URL')
+    parser.add_argument('output', help='Output directory', metavar='DIR')
+    parser.add_argument('command', help='Fetch command, supports templates {url} and {dest}', metavar='CMD', nargs='*', default=['crocoite-grab', '{url}', '{dest}'])
+
+    args = parser.parse_args ()
+    try:
+        policy = parsePolicy (args.policy, args.url)
+    except ValueError:
+        parser.error ('Invalid argument for --policy')
+
+    os.makedirs (args.output, exist_ok=True)
+
+    controller = RecursiveController (url=args.url, output=args.output,
+            command=args.command, logger=logger, policy=policy,
+            tempdir=args.tempdir, prefix=args.prefix)
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(controller.run ())
+    loop.close()
+

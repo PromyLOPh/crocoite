@@ -17,6 +17,7 @@ setup(
     entry_points={
     'console_scripts': [
             'crocoite-grab = crocoite.cli:single',
+            'crocoite-recursive = crocoite.cli:recursive',
             'crocoite-merge-warc = crocoite.tools:mergeWarc',
             'crocoite-extract-screenshot = crocoite.tools:extractScreenshot',
             ],
