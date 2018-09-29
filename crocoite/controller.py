@@ -312,8 +312,9 @@ class RecursiveController:
 
     async def fetch (self, url):
         """
-        Overrideable fetch action for URLs. Defaults to sequential
-        SinglePageController.
+        Fetch a single URL using an external command
+
+        command is usually crocoite-grab
         """
 
         def formatCommand (e):

@@ -17,10 +17,12 @@ The following dependencies must be present to run crocoite:
 - pychrome_ 
 - warcio_
 - html5lib_
+- bottom_ (IRC client)
 
 .. _pychrome: https://github.com/fate0/pychrome
 .. _warcio: https://github.com/webrecorder/warcio
 .. _html5lib: https://github.com/html5lib/html5lib-python
+.. _bottom: https://github.com/numberoverzero/bottom
 
 It is recommended to prepare a virtualenv and let pip handle the dependency
 resolution for Python packages instead:
@@ -118,6 +120,39 @@ displayed without executing scripts.  Obviously JavaScript-based navigation
 does not work any more. Secondly it also saves a screenshot of the full page,
 so even if future browsers cannot render and display the stored HTML a fully
 rendered version of the website can be replayed instead.
+
+Advanced usage
+--------------
+
+crocoite is built with the Unix philosophy (“do one thing and do it well”) in
+mind. Thus ``crocoite-grab`` can only save a single page. If you want recursion
+use ``crocoite-recursive``, which follows hyperlinks according to ``--policy``.
+It can either recurse a maximum number of levels or grab all pages with the
+same prefix as the start URL:
+
+.. code:: bash
+
+   crocoite-recursive --policy prefix http://www.example.com/dir/ output
+
+will save all pages in ``/dir/`` and below to individual files in the output
+directory ``output``. You can customize the command used to grab individual
+pages by appending it after ``output``. This way distributed grabs (ssh to a
+different machine and execute the job there, queue the command with Slurm, …)
+are possible.
+
+IRC bot
+^^^^^^^
+
+A simple IRC bot (“chromebot”) is provided with the command ``crocoite-irc``.
+It reads its configuration from a config file like the example provided in
+``contrib/chromebot.ini`` and supports the following commands:
+
+a <url> -j <concurrency> -r <policy>
+    Archive <url> with <concurrency> processes according to recursion <policy>
+s <uuid>
+    Get job status for <uuid>
+r <uuid>
+    Revoke or abort running job with <uuid>
 
 Related projects
 ----------------

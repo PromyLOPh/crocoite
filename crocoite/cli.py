@@ -111,8 +111,13 @@ def irc ():
     from configparser import ConfigParser
     from .irc import Bot
 
+    parser = argparse.ArgumentParser(description='IRC bot.')
+    parser.add_argument('--config', '-c', help='Config file location', metavar='PATH', default='chromebot.ini')
+
+    args = parser.parse_args ()
+
     config = ConfigParser ()
-    config.read ('chromebot.ini')
+    config.read (args.config)
     s = config['irc']
 
     bot = Bot (
