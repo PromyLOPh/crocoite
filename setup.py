@@ -13,11 +13,13 @@ setup(
         'pychrome',
         'warcio',
         'html5lib>=0.999999999',
+        'bottom',
     ],
     entry_points={
     'console_scripts': [
             'crocoite-grab = crocoite.cli:single',
             'crocoite-recursive = crocoite.cli:recursive',
+            'crocoite-irc = crocoite.cli:irc',
             'crocoite-merge-warc = crocoite.tools:mergeWarc',
             'crocoite-extract-screenshot = crocoite.tools:extractScreenshot',
             ],

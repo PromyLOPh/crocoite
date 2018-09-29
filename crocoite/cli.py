@@ -107,3 +107,22 @@ def recursive ():
     loop.run_until_complete(controller.run ())
     loop.close()
 
+def irc ():
+    from configparser import ConfigParser
+    from .irc import Bot
+
+    config = ConfigParser ()
+    config.read ('chromebot.ini')
+    s = config['irc']
+
+    bot = Bot (
+            host=s.get ('host'),
+            port=s.getint ('port'),
+            ssl=s.getboolean ('ssl'),
+            nick=s.get ('nick'),
+            channels=[s.get ('channel')],
+            tempdir=s.get ('tempdir'),
+            destdir=s.get ('destdir'))
+    bot.loop.create_task(bot.connect())
+    bot.loop.run_forever()
+
