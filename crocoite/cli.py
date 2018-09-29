@@ -122,7 +122,8 @@ def irc ():
             nick=s.get ('nick'),
             channels=[s.get ('channel')],
             tempdir=s.get ('tempdir'),
-            destdir=s.get ('destdir'))
+            destdir=s.get ('destdir'),
+            processLimit=s.getint ('process_limit'))
     bot.loop.create_task(bot.connect())
     bot.loop.run_forever()
 
