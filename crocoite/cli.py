@@ -109,7 +109,9 @@ def recursive ():
 
 def irc ():
     from configparser import ConfigParser
-    from .irc import Bot
+    from .irc import Chromebot
+
+    logger = Logger (consumer=[DatetimeConsumer (), JsonPrintConsumer ()])
 
     parser = argparse.ArgumentParser(description='IRC bot.')
     parser.add_argument('--config', '-c', help='Config file location', metavar='PATH', default='chromebot.ini')
@@ -120,7 +122,7 @@ def irc ():
     config.read (args.config)
     s = config['irc']
 
-    bot = Bot (
+    bot = Chromebot (
             host=s.get ('host'),
             port=s.getint ('port'),
             ssl=s.getboolean ('ssl'),
@@ -128,7 +130,8 @@ def irc ():
             channels=[s.get ('channel')],
             tempdir=s.get ('tempdir'),
             destdir=s.get ('destdir'),
-            processLimit=s.getint ('process_limit'))
+            processLimit=s.getint ('process_limit'),
+            logger=logger)
     bot.loop.create_task(bot.connect())
     bot.loop.run_forever()
 
