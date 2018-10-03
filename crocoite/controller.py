@@ -241,12 +241,14 @@ class DepthLimit (RecursionPolicy):
     """
     Limit recursion by depth.
     
-    depth==0 means no recursion, depth==1 is the page and outgoing links, …
+    depth==0 means no recursion, depth==1 is the page and outgoing links
     """
 
     __slots__ = ('maxdepth')
 
     def __init__ (self, maxdepth=0):
+        if maxdepth < 0 or maxdepth > 1:
+            raise ValueError ('Unsupported')
         self.maxdepth = maxdepth
 
     def __call__ (self, urls):
