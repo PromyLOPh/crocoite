@@ -217,17 +217,33 @@ class ArgparseBot (bottom.Client):
     async def onNameReply (self, target, channel_type, channel, users, **kwargs):
         self.users[channel] = dict (map (lambda x: (x.name, x), map (User.fromName, users)))
 
+    @staticmethod
+    def parseMode (mode):
+        """ Parse mode strings like +a, -b, +a-b, -b+a, … """
+        action = '+'
+        ret = []
+        for c in mode:
+            if c in {'+', '-'}:
+                action = c
+            else:
+                ret.append ((action, c))
+        return ret
+
     async def onMode (self, nick, user, host, channel, modes, params, **kwargs):
         if channel not in self.channels:
             return
 
-        op = modes[0]
-        for m, nick in zip (map (NickMode.fromMode, modes[1:]), params):
-            u = self.users[channel].get (nick, User (nick))
-            if op == '+':
-                u.modes.add (m)
-            elif op == '-':
-                u.modes.remove (m)
+        for (action, mode), nick in zip (self.parseMode (modes), params):
+            try:
+                m = NickMode.fromMode (mode)
+                u = self.users[channel].get (nick, User (nick))
+                if action == '+':
+                    u.modes.add (m)
+                elif action == '-':
+                    u.modes.remove (m)
+            except KeyError:
+                # unknown mode, ignore
+                pass
 
     async def onPart (self, nick, user, host, message, channel, **kwargs):
         if channel not in self.channels:
