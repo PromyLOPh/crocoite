@@ -32,6 +32,8 @@ from datetime import datetime
 from functools import partial
 from enum import IntEnum
 
+from pytz import utc
+
 class Level(IntEnum):
     DEBUG = 0
     INFO = 1
@@ -124,7 +126,7 @@ class JsonPrintConsumer (Consumer):
 
 class DatetimeConsumer (Consumer):
     def __call__ (self, **kwargs):
-        kwargs['date'] = datetime.utcnow ()
+        kwargs['date'] = datetime.utcnow ().replace (tzinfo=utc)
         return kwargs
 
 class WarcHandlerConsumer (Consumer):

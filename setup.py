@@ -14,6 +14,7 @@ setup(
         'warcio',
         'html5lib>=0.999999999',
         'bottom',
+        'pytz',
     ],
     entry_points={
     'console_scripts': [
