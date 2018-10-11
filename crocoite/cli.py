@@ -22,7 +22,7 @@
 Command line interface
 """
 
-import argparse, json, sys
+import argparse, json, sys, signal
 
 from . import behavior
 from .controller import SinglePageController, defaultSettings, \
@@ -104,6 +104,9 @@ def recursive ():
             concurrency=args.concurrency)
 
     loop = asyncio.get_event_loop()
+    stop = lambda signum: controller.cancel ()
+    loop.add_signal_handler (signal.SIGINT, stop, signal.SIGINT)
+    loop.add_signal_handler (signal.SIGTERM, stop, signal.SIGTERM)
     loop.run_until_complete(controller.run ())
     loop.close()
 
