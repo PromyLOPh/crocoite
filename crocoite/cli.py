@@ -125,6 +125,7 @@ def irc ():
     config.read (args.config)
     s = config['irc']
 
+    loop = asyncio.get_event_loop()
     bot = Chromebot (
             host=s.get ('host'),
             port=s.getint ('port'),
@@ -134,7 +135,10 @@ def irc ():
             tempdir=s.get ('tempdir'),
             destdir=s.get ('destdir'),
             processLimit=s.getint ('process_limit'),
-            logger=logger)
-    bot.loop.create_task(bot.connect())
-    bot.loop.run_forever()
+            logger=logger,
+            loop=loop)
+    stop = lambda signum: bot.cancel ()
+    loop.add_signal_handler (signal.SIGINT, stop, signal.SIGINT)
+    loop.add_signal_handler (signal.SIGTERM, stop, signal.SIGTERM)
+    loop.run_until_complete(bot.run ())
 
