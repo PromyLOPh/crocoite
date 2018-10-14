@@ -1,0 +1,7 @@
+.jid {
+	font-family: Consolas, mono;
+}
+.job .urls {
+	max-height: 10em;
+	overflow-y: scroll;
+}

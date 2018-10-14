@@ -142,3 +142,11 @@ def irc ():
     loop.add_signal_handler (signal.SIGTERM, stop, signal.SIGTERM)
     loop.run_until_complete(bot.run ())
 
+def dashboard ():
+    from .irc import Dashboard
+
+    loop = asyncio.get_event_loop()
+    d = Dashboard (sys.stdin, loop)
+    loop.run_until_complete(d.run ())
+    loop.run_forever()
+

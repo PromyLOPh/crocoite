@@ -337,9 +337,9 @@ class RecursiveController:
                 prefix=formatPrefix (self.prefix), suffix='.warc.gz',
                 delete=False)
         destpath = os.path.join (self.output, os.path.basename (dest.name))
-        logger = self.logger.bind (url=url, destfile=destpath)
+        logger = self.logger.bind (url=url)
         command = list (map (formatCommand, self.command))
-        logger.info ('fetch', uuid='1680f384-744c-4b8a-815b-7346e632e8db', command=command)
+        logger.info ('fetch', uuid='1680f384-744c-4b8a-815b-7346e632e8db', command=command, destfile=destpath)
         process = await asyncio.create_subprocess_exec (*command, stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL, stdin=asyncio.subprocess.DEVNULL,
                 start_new_session=True)
@@ -370,22 +370,28 @@ class RecursiveController:
         self._quit = True
 
     async def run (self):
-        self.have = set ()
-        self.pending = set ([self.url])
-
-        while self.pending and not self._quit:
+        def log ():
             self.logger.info ('recursing',
                     uuid='5b8498e4-868d-413c-a67e-004516b8452c',
                     pending=len (self.pending), have=len (self.have),
                     running=len (self.running))
 
+        self.have = set ()
+        self.pending = set ([self.url])
+
+        while self.pending:
             # since pending is a set this picks a random item, which is fine
             u = self.pending.pop ()
             self.have.add (u)
             t = asyncio.ensure_future (self.fetch (u))
             self.running.add (t)
+
+            log ()
+
             if len (self.running) >= self.concurrency or not self.pending:
                 done, pending = await asyncio.wait (self.running,
                         return_when=asyncio.FIRST_COMPLETED)
                 self.running.difference_update (done)
+
+        log ()
 

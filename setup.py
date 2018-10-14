@@ -15,12 +15,14 @@ setup(
         'html5lib>=0.999999999',
         'bottom',
         'pytz',
+        'websockets',
     ],
     entry_points={
     'console_scripts': [
             'crocoite-grab = crocoite.cli:single',
             'crocoite-recursive = crocoite.cli:recursive',
             'crocoite-irc = crocoite.cli:irc',
+            'crocoite-irc-dashboard = crocoite.cli:dashboard',
             'crocoite-merge-warc = crocoite.tools:mergeWarc',
             'crocoite-extract-screenshot = crocoite.tools:extractScreenshot',
             ],
