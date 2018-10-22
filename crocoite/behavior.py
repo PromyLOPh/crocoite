@@ -114,10 +114,12 @@ class JsOnload (Behavior):
 
     def onload (self):
         yield self.script
-        self.scriptHandle = self.loader.tab.Page.addScriptToEvaluateOnNewDocument (source=str (self.script))['identifier']
+        result = self.loader.tab.Page.addScriptToEvaluateOnNewDocument (source=str (self.script))
+        self.scriptHandle = result['identifier']
 
     def onstop (self):
-        self.loader.tab.Page.removeScriptToEvaluateOnNewDocument (identifier=self.scriptHandle)
+        if self.scriptHandle:
+            self.loader.tab.Page.removeScriptToEvaluateOnNewDocument (identifier=self.scriptHandle)
         yield from ()
 
 ### Generic scripts ###
