@@ -56,7 +56,7 @@ class StatsHandler (EventHandler):
     acceptException = True
 
     def __init__ (self):
-        self.stats = {'requests': 0, 'finished': 0, 'failed': 0, 'bytesRcv': 0, 'crashed': 0}
+        self.stats = {'requests': 0, 'finished': 0, 'failed': 0, 'bytesRcv': 0}
 
     def push (self, item):
         if isinstance (item, Item):
@@ -66,8 +66,6 @@ class StatsHandler (EventHandler):
             else:
                 self.stats['finished'] += 1
                 self.stats['bytesRcv'] += item.encodedDataLength
-        elif isinstance (item, BrowserCrashed):
-            self.stats['crashed'] += 1
 
 from .behavior import ExtractLinksEvent
 from itertools import islice
@@ -321,14 +319,20 @@ class RecursiveController:
         command is usually crocoite-grab
         """
 
+        logger = self.logger.bind (url=url)
+
         def formatCommand (e):
             return e.format (url=url, dest=dest.name)
 
         def formatPrefix (p):
             return p.format (host=urlparse (url).hostname, date=datetime.utcnow ().isoformat ())
 
+        def logStats ():
+            logger.info ('stats', uuid='24d92d16-770e-4088-b769-4020e127a7ff', **self.stats)
+
         if urlparse (url).scheme not in self.SCHEME_WHITELIST:
             self.stats['ignored'] += 1
+            logStats ()
             self.logger.warning ('scheme not whitelisted', url=url,
                     uuid='57e838de-4494-4316-ae98-cd3a2ebf541b')
             return
@@ -337,7 +341,6 @@ class RecursiveController:
                 prefix=formatPrefix (self.prefix), suffix='.warc.gz',
                 delete=False)
         destpath = os.path.join (self.output, os.path.basename (dest.name))
-        logger = self.logger.bind (url=url)
         command = list (map (formatCommand, self.command))
         logger.info ('fetch', uuid='1680f384-744c-4b8a-815b-7346e632e8db', command=command, destfile=destpath)
         process = await asyncio.create_subprocess_exec (*command, stdout=asyncio.subprocess.PIPE,
@@ -356,10 +359,14 @@ class RecursiveController:
             elif uuid == '24d92d16-770e-4088-b769-4020e127a7ff':
                 for k in self.stats.keys ():
                     self.stats[k] += data.get (k, 0)
-                logger.info ('stats', uuid='24d92d16-770e-4088-b769-4020e127a7ff', **self.stats)
+                logStats ()
         code = await process.wait()
-        # atomically move once finished
-        os.rename (dest.name, destpath)
+        if code == 0:
+            # atomically move once finished
+            os.rename (dest.name, destpath)
+        else:
+            self.stats['crashed'] += 1
+            logStats ()
 
     def cancel (self):
         """ Gracefully cancel this job, waiting for existing workers to shut down """

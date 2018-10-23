@@ -23,13 +23,20 @@ Command line interface
 """
 
 import argparse, json, sys, signal
+from enum import IntEnum
 
 from . import behavior
 from .controller import SinglePageController, defaultSettings, \
         ControllerSettings, StatsHandler, LogHandler
-from .browser import NullService, ChromeService
+from .browser import NullService, ChromeService, BrowserCrashed
 from .warc import WarcHandler
 from .logger import Logger, JsonPrintConsumer, DatetimeConsumer, WarcHandlerConsumer
+
+class SingleExitStatus(IntEnum):
+    """ Exit status for single-shot command line """
+    Ok = 0
+    Fail = 1
+    BrowserCrash = 2
 
 def single ():
     parser = argparse.ArgumentParser(description='Save website to WARC using Google Chrome.')
@@ -48,6 +55,7 @@ def single ():
 
     logger = Logger (consumer=[DatetimeConsumer (), JsonPrintConsumer ()])
 
+    ret = SingleExitStatus.Fail
     service = ChromeService ()
     if args.browser:
         service = NullService (args.browser)
@@ -59,11 +67,16 @@ def single ():
         b = list (map (lambda x: behavior.availableMap[x], args.enabledBehaviorNames))
         controller = SinglePageController (args.url, fd, settings=settings,
                 service=service, handler=handler, behavior=b, logger=logger)
-        controller.run ()
-        r = handler[0].stats
-        logger.info ('stats', context='cli', uuid='24d92d16-770e-4088-b769-4020e127a7ff', **r)
+        try:
+            controller.run ()
+            ret = SingleExitStatus.Ok
+        except BrowserCrashed:
+            ret = SingleExitStatus.BrowserCrash
+        finally:
+            r = handler[0].stats
+            logger.info ('stats', context='cli', uuid='24d92d16-770e-4088-b769-4020e127a7ff', **r)
 
-    return True
+    return ret
 
 import asyncio, os
 from .controller import RecursiveController, DepthLimit, PrefixLimit
@@ -109,6 +122,8 @@ def recursive ():
     loop.add_signal_handler (signal.SIGTERM, stop, signal.SIGTERM)
     loop.run_until_complete(controller.run ())
     loop.close()
+
+    return 0
 
 def irc ():
     from configparser import ConfigParser
