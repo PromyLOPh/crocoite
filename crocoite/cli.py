@@ -41,8 +41,8 @@ class SingleExitStatus(IntEnum):
 def single ():
     parser = argparse.ArgumentParser(description='Save website to WARC using Google Chrome.')
     parser.add_argument('--browser', help='DevTools URL', metavar='URL')
-    parser.add_argument('--timeout', default=10, type=int, help='Maximum time for archival', metavar='SEC')
-    parser.add_argument('--idle-timeout', default=2, type=int, help='Maximum idle seconds (i.e. no requests)', dest='idleTimeout', metavar='SEC')
+    parser.add_argument('--timeout', default=1*60*60, type=int, help='Maximum time for archival', metavar='SEC')
+    parser.add_argument('--idle-timeout', default=30, type=int, help='Maximum idle seconds (i.e. no requests)', dest='idleTimeout', metavar='SEC')
     parser.add_argument('--max-body-size', default=defaultSettings.maxBodySize, type=int, dest='maxBodySize', help='Max body size', metavar='BYTES')
     parser.add_argument('--behavior', help='Comma-separated list of enabled behavior scripts',
             dest='enabledBehaviorNames',
