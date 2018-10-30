@@ -386,7 +386,7 @@ class RecursiveController:
         self.have = set ()
         self.pending = set ([self.url])
 
-        while self.pending:
+        while self.pending and not self._quit:
             # since pending is a set this picks a random item, which is fine
             u = self.pending.pop ()
             self.have.add (u)
@@ -400,5 +400,7 @@ class RecursiveController:
                         return_when=asyncio.FIRST_COMPLETED)
                 self.running.difference_update (done)
 
+        done = asyncio.gather (*self.running)
+        self.running = set ()
         log ()
 
