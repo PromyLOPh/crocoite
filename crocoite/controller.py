@@ -135,7 +135,7 @@ class SinglePageController:
 
     def run (self):
         logger = self.logger
-        def processQueue ():
+        def processQueue (idleTimeout=self.settings.idleTimeout):
             # XXX: this is very ugly code and does not work well. figure out a
             # better way to impose timeouts and still process all items in the
             # queue
@@ -146,7 +146,7 @@ class SinglePageController:
             while True:
                 now = time.time ()
                 elapsed = now-start
-                maxTimeout = max (min (self.settings.idleTimeout, self.settings.timeout-elapsed), 0)
+                maxTimeout = max (min (idleTimeout, self.settings.timeout-elapsed), 0)
                 logger.debug ('timeout status',
                         uuid='49550447-37e3-49ff-9a73-34da1c3e5984',
                         maxTimeout=maxTimeout, elapsed=elapsed)
@@ -219,13 +219,13 @@ class SinglePageController:
                     self.processItem (item)
 
             # if we stopped due to timeout, wait for remaining assets
-            processQueue ()
+            processQueue (1)
 
             for b in enabledBehavior:
                 for item in b.onfinish ():
                     self.processItem (item)
 
-            processQueue ()
+            processQueue (1)
 
 class RecursionPolicy:
     """ Abstract recursion policy """
