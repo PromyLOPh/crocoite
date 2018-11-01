@@ -16,6 +16,7 @@ setup(
         'bottom',
         'pytz',
         'websockets',
+        'aiohttp',
     ],
     entry_points={
     'console_scripts': [
@@ -31,5 +32,5 @@ setup(
             'crocoite': ['data/*'],
     },
     setup_requires=["pytest-runner"],
-    tests_require=["pytest"],
+    tests_require=["pytest", 'pytest-asyncio', 'pytest-cov'],
 )
