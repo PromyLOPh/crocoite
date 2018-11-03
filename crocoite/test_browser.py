@@ -18,13 +18,19 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+import logging
+import asyncio
 import pytest
 from operator import itemgetter
+from aiohttp import web
 from http.server import BaseHTTPRequestHandler
-from pychrome.exceptions import TimeoutException
 
-from .browser import Item, SiteLoader, ChromeService, NullService, BrowserCrashed
-from .logger import Logger, Consumer
+from .browser import Item, SiteLoader, ChromeService, NullService
+from .logger import Logger, Consumer, JsonPrintConsumer
+from .devtools import Crashed
+
+# if you want to know what’s going on:
+#logging.basicConfig(level=logging.DEBUG)
 
 class TItem (Item):
     """ This should be as close to Item as possible """
@@ -32,21 +38,14 @@ class TItem (Item):
     __slots__ = ('bodySend', '_body', '_requestBody')
     base = 'http://localhost:8000/'
 
-    def __init__ (self, path, status, headers, bodyReceive, bodySend=None, requestBody=None, failed=False):
+    def __init__ (self, path, status, headers, bodyReceive, bodySend=None, requestBody=None, failed=False, isRedirect=False):
         super ().__init__ (tab=None)
         self.chromeResponse = {'response': {'headers': headers, 'status': status, 'url': self.base + path}}
-        self._body = bodyReceive, False
+        self.body = bodyReceive, False
         self.bodySend = bodyReceive if not bodySend else bodySend
-        self._requestBody = requestBody, False
+        self.requestBody = requestBody, False
         self.failed = failed
-
-    @property
-    def body (self):
-        return self._body
-
-    @property
-    def requestBody (self):
-        return self._requestBody
+        self.isRedirect = isRedirect
 
 testItems = [
     TItem ('binary', 200, {'Content-Type': 'application/octet-stream'}, b'\x00\x01\x02', failed=True),
@@ -66,15 +65,15 @@ testItems = [
     TItem ('image', 200, {'Content-Type': 'image/png'},
             # 1×1 png image
             b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x00\x00\x00\x00:~\x9bU\x00\x00\x00\nIDAT\x08\x1dc\xf8\x0f\x00\x01\x01\x01\x006_g\x80\x00\x00\x00\x00IEND\xaeB`\x82'),
-    TItem ('empty', 200, {}, b''),
-    TItem ('redirect/301/empty', 301, {'Location': '/empty'}, b''),
-    TItem ('redirect/301/redirect/301/empty', 301, {'Location': '/redirect/301/empty'}, b''),
+    TItem ('empty', 200, {'Content-Type': 'text/plain'}, b''),
+    TItem ('redirect/301/empty', 301, {'Location': '/empty'}, b'', isRedirect=True),
+    TItem ('redirect/301/redirect/301/empty', 301, {'Location': '/redirect/301/empty'}, b'', isRedirect=True),
     TItem ('nonexistent', 404, {}, b''),
-    TItem ('html', 200, {'Content-Type': 'html'},
+    TItem ('html', 200, {'Content-Type': 'text/html'},
             '<html><body><img src="/image"><img src="/nonexistent"></body></html>'.encode ('utf8')),
-    TItem ('html/alert', 200, {'Content-Type': 'html'},
-            '<html><body><script>window.addEventListener("beforeunload", function (e) { e.returnValue = "bye?"; return e.returnValue; }); alert("stopping here"); if (confirm("are you sure?") || prompt ("42?")) { window.location = "/nonexistent"; }</script><img src="/image"></body></html>'.encode ('utf8')),
-    TItem ('html/fetchPost', 200, {'Content-Type': 'html'},
+    TItem ('html/alert', 200, {'Content-Type': 'text/html'},
+            '<html><body><script>window.addEventListener("beforeunload", function (e) { e.returnValue = "bye?"; return e.returnValue; }); alert("stopping here"); if (confirm("are you sure?") || prompt ("42?")) { window.location = "/nonexistent"; }</script><script>document.write(\'<img src="/image">\');</script></body></html>'.encode ('utf8')),
+    TItem ('html/fetchPost', 200, {'Content-Type': 'text/html'},
             r"""<html><body><script>
             let a = fetch("/html/fetchPost/binary", {"method": "POST", "body": "\x00"});
             let b = fetch("/html/fetchPost/form", {"method": "POST", "body": new URLSearchParams({"data": "!"})});
@@ -89,156 +88,145 @@ testItems = [
     ]
 testItemMap = dict ([(item.parsedUrl.path, item) for item in testItems])
 
-class RequestHandler (BaseHTTPRequestHandler):
-    def do_GET(self):
-        item = testItemMap.get (self.path)
-        if item:
-            self.send_response (item.response['status'])
-            for k, v in item.response['headers'].items ():
-                self.send_header (k, v)
-            body = item.bodySend
-            self.send_header ('Content-Length', len (body))
-            self.end_headers()
-            self.wfile.write (body)
-        return
-
-    do_POST = do_GET
-
-    def log_message (self, format, *args):
-        pass
+def itemToResponse (item):
+    async def f (req):
+        headers = item.response['headers']
+        return web.Response(body=item.bodySend, status=item.response['status'],
+                headers=headers)
+    return f
 
 @pytest.fixture
-def http ():
-    def run ():
-        import http.server
-        PORT = 8000
-        httpd = http.server.HTTPServer (("localhost", PORT), RequestHandler)
-        print ('starting http server')
-        httpd.serve_forever()
-
-    from multiprocessing import Process
-    p = Process (target=run)
-    p.start ()
-    yield p
-    p.terminate ()
-    p.join ()
+async def server ():
+    """ Simple HTTP server for testing notifications """
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+    app = web.Application(debug=True)
+    for item in testItems:
+        app.router.add_route ('*', item.parsedUrl.path, itemToResponse (item))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, 'localhost', 8080)
+    await site.start()
+    yield app
+    await runner.cleanup ()
 
 class AssertConsumer (Consumer):
     def __call__ (self, **kwargs):
         assert 'uuid' in kwargs
         assert 'msg' in kwargs
         assert 'context' in kwargs
+        return kwargs
 
 @pytest.fixture
 def logger ():
     return Logger (consumer=[AssertConsumer ()])
 
 @pytest.fixture
-def loader (http, logger):
+def loader (server, logger):
     def f (path):
         if path.startswith ('/'):
-            path = 'http://localhost:8000{}'.format (path)
+            path = 'http://localhost:8080{}'.format (path)
         return SiteLoader (browser, path, logger)
-    print ('loader setup')
     with ChromeService () as browser:
         yield f
-    print ('loader teardown')
 
-def itemsLoaded (l, items):
+async def itemsLoaded (l, items):
     items = dict ([(i.parsedUrl.path, i) for i in items])
-    timeout = 5
-    while True:
-        if not l.notify.wait (timeout) and len (items) > 0:
-            assert False, 'timeout'
-        if len (l.queue) > 0:
-            item = l.queue.popleft ()
-            if isinstance (item, Exception):
-                raise item
-            assert item.chromeResponse is not None
-            golden = items.pop (item.parsedUrl.path)
-            if not golden:
-                assert False, 'url {} not supposed to be fetched'.format (item.url)
-            assert item.failed == golden.failed
-            if item.failed:
-                # response will be invalid if request failed
+    async for item in l:
+        assert item.chromeResponse is not None
+        golden = items.pop (item.parsedUrl.path)
+        if not golden:
+            assert False, 'url {} not supposed to be fetched'.format (item.url)
+        assert item.failed == golden.failed
+        if item.failed:
+            # response will be invalid if request failed
+            if not items:
+                break
+            else:
                 continue
+        assert item.isRedirect == golden.isRedirect
+        if golden.isRedirect:
+            assert item.body is None
+        else:
             assert item.body[0] == golden.body[0]
-            assert item.requestBody[0] == golden.requestBody[0]
-            assert item.response['status'] == golden.response['status']
-            assert item.statusText == BaseHTTPRequestHandler.responses.get (item.response['status'])[0]
-            for k, v in golden.responseHeaders:
-                actual = list (map (itemgetter (1), filter (lambda x: x[0] == k, item.responseHeaders)))
-                assert v in actual
-
-        # check queue at least once
+        assert item.requestBody[0] == golden.requestBody[0]
+        assert item.response['status'] == golden.response['status']
+        assert item.statusText == BaseHTTPRequestHandler.responses.get (item.response['status'])[0]
+        for k, v in golden.responseHeaders:
+            actual = list (map (itemgetter (1), filter (lambda x: x[0] == k, item.responseHeaders)))
+            assert v in actual
+        
+        # we’re done when everything has been loaded
         if not items:
             break
 
-def literalItem (lf, item, deps=[]):
-    with lf (item.parsedUrl.path) as l:
-        l.start ()
-        itemsLoaded (l, [item] + deps)
+async def literalItem (lf, item, deps=[]):
+    async with lf (item.parsedUrl.path) as l:
+        await l.start ()
+        await asyncio.wait_for (itemsLoaded (l, [item] + deps), timeout=30)
 
-def test_empty (loader):
-    literalItem (loader, testItemMap['/empty'])
+@pytest.mark.asyncio
+async def test_empty (loader):
+    await literalItem (loader, testItemMap['/empty'])
 
-def test_redirect (loader):
-    literalItem (loader, testItemMap['/redirect/301/empty'], [testItemMap['/empty']])
+@pytest.mark.asyncio
+async def test_redirect (loader):
+    await literalItem (loader, testItemMap['/redirect/301/empty'], [testItemMap['/empty']])
     # chained redirects
-    literalItem (loader, testItemMap['/redirect/301/redirect/301/empty'], [testItemMap['/redirect/301/empty'], testItemMap['/empty']])
+    await literalItem (loader, testItemMap['/redirect/301/redirect/301/empty'], [testItemMap['/redirect/301/empty'], testItemMap['/empty']])
 
-def test_encoding (loader):
+@pytest.mark.asyncio
+async def test_encoding (loader):
     """ Text responses are transformed to UTF-8. Make sure this works
     correctly. """
     for item in {testItemMap['/encoding/utf8'], testItemMap['/encoding/latin1'], testItemMap['/encoding/iso88591']}:
-        literalItem (loader, item)
+        await literalItem (loader, item)
 
-def test_binary (loader):
+@pytest.mark.asyncio
+async def test_binary (loader):
     """ Browser should ignore content it cannot display (i.e. octet-stream) """
-    literalItem (loader, testItemMap['/binary'])
+    await literalItem (loader, testItemMap['/binary'])
 
-def test_image (loader):
+@pytest.mark.asyncio
+async def test_image (loader):
     """ Images should be displayed inline """
-    literalItem (loader, testItemMap['/image'])
+    await literalItem (loader, testItemMap['/image'])
 
-def test_attachment (loader):
+@pytest.mark.asyncio
+async def test_attachment (loader):
     """ And downloads won’t work in headless mode, even if it’s just a text file """
-    literalItem (loader, testItemMap['/attachment'])
+    await literalItem (loader, testItemMap['/attachment'])
 
-def test_html (loader):
-    literalItem (loader, testItemMap['/html'], [testItemMap['/image'], testItemMap['/nonexistent']])
+@pytest.mark.asyncio
+async def test_html (loader):
+    await literalItem (loader, testItemMap['/html'], [testItemMap['/image'], testItemMap['/nonexistent']])
     # make sure alerts are dismissed correctly (image won’t load otherwise)
-    literalItem (loader, testItemMap['/html/alert'], [testItemMap['/image']])
+    await literalItem (loader, testItemMap['/html/alert'], [testItemMap['/image']])
 
-def test_post (loader):
+@pytest.mark.asyncio
+async def test_post (loader):
     """ XHR POST request with binary data"""
-    literalItem (loader, testItemMap['/html/fetchPost'],
+    await literalItem (loader, testItemMap['/html/fetchPost'],
             [testItemMap['/html/fetchPost/binary'],
             testItemMap['/html/fetchPost/binary/large'],
             testItemMap['/html/fetchPost/form'],
             testItemMap['/html/fetchPost/form/large']])
 
-def test_crash (loader):
-    with loader ('/html') as l:
-        l.start ()
-        try:
-            l.tab.Page.crash (_timeout=1)
-        except TimeoutException:
-            pass
-        q = l.queue
-        assert isinstance (q.popleft (), BrowserCrashed)
+@pytest.mark.asyncio
+async def test_crash (loader):
+    async with loader ('/html') as l:
+        await l.start ()
+        with pytest.raises (Crashed):
+            await l.tab.Page.crash ()
 
-def test_invalidurl (loader):
+@pytest.mark.asyncio
+async def test_invalidurl (loader):
     url = 'http://nonexistent.example/'
-    with loader (url) as l:
-        l.start ()
-
-        q = l.queue
-        if not l.notify.wait (10):
-            assert False, 'timeout'
-
-        it = q.popleft ()
-        assert it.failed
+    async with loader (url) as l:
+        await l.start ()
+        async for it in l:
+            assert it.failed
+            break
 
 def test_nullservice ():
     """ Null service returns the url as is """
