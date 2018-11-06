@@ -28,9 +28,10 @@ from enum import IntEnum
 from . import behavior
 from .controller import SinglePageController, defaultSettings, \
         ControllerSettings, StatsHandler, LogHandler
-from .browser import NullService, ChromeService, BrowserCrashed
+from .browser import NullService, ChromeService
 from .warc import WarcHandler
 from .logger import Logger, JsonPrintConsumer, DatetimeConsumer, WarcHandlerConsumer
+from .devtools import Crashed
 
 class SingleExitStatus(IntEnum):
     """ Exit status for single-shot command line """
@@ -43,7 +44,6 @@ def single ():
     parser.add_argument('--browser', help='DevTools URL', metavar='URL')
     parser.add_argument('--timeout', default=1*60*60, type=int, help='Maximum time for archival', metavar='SEC')
     parser.add_argument('--idle-timeout', default=30, type=int, help='Maximum idle seconds (i.e. no requests)', dest='idleTimeout', metavar='SEC')
-    parser.add_argument('--max-body-size', default=defaultSettings.maxBodySize, type=int, dest='maxBodySize', help='Max body size', metavar='BYTES')
     parser.add_argument('--behavior', help='Comma-separated list of enabled behavior scripts',
             dest='enabledBehaviorNames',
             default=list (behavior.availableMap.keys ()),
@@ -59,8 +59,7 @@ def single ():
     service = ChromeService ()
     if args.browser:
         service = NullService (args.browser)
-    settings = ControllerSettings (maxBodySize=args.maxBodySize,
-            idleTimeout=args.idleTimeout, timeout=args.timeout)
+    settings = ControllerSettings (idleTimeout=args.idleTimeout, timeout=args.timeout)
     with open (args.output, 'wb') as fd, WarcHandler (fd, logger) as warcHandler:
         logger.connect (WarcHandlerConsumer (warcHandler))
         handler = [StatsHandler (), LogHandler (logger), warcHandler]
@@ -68,9 +67,11 @@ def single ():
         controller = SinglePageController (args.url, fd, settings=settings,
                 service=service, handler=handler, behavior=b, logger=logger)
         try:
-            controller.run ()
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(controller.run ())
+            loop.close()
             ret = SingleExitStatus.Ok
-        except BrowserCrashed:
+        except Crashed:
             ret = SingleExitStatus.BrowserCrash
         finally:
             r = handler[0].stats

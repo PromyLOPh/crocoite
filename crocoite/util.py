@@ -37,8 +37,8 @@ def packageUrl (path):
     """
     return 'urn:' + __package__ + ':' + path
 
-def getFormattedViewportMetrics (tab):
-    layoutMetrics = tab.Page.getLayoutMetrics ()
+async def getFormattedViewportMetrics (tab):
+    layoutMetrics = await tab.Page.getLayoutMetrics ()
     # XXX: I’m not entirely sure which one we should use here
     return '{}x{}'.format (layoutMetrics['layoutViewport']['clientWidth'],
                 layoutMetrics['layoutViewport']['clientHeight'])

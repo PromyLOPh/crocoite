@@ -37,15 +37,13 @@ from .behavior import Script, DomSnapshotEvent, ScreenshotEvent
 from .browser import Item
 
 class WarcHandler (EventHandler):
-    __slots__ = ('logger', 'writer', 'maxBodySize', 'documentRecords', 'log',
+    __slots__ = ('logger', 'writer', 'documentRecords', 'log',
             'maxLogSize', 'logEncoding', 'warcinfoRecordId')
 
     def __init__ (self, fd,
-            logger,
-            maxBodySize=defaultSettings.maxBodySize):
+            logger):
         self.logger = logger
         self.writer = WARCWriter (fd, gzip=True)
-        self.maxBodySize = maxBodySize
 
         self.logEncoding = 'utf-8'
         self.log = BytesIO ()
@@ -101,16 +99,13 @@ class WarcHandler (EventHandler):
                 'X-Chrome-Request-ID': item.id,
                 'WARC-Date': datetime_to_iso_date (datetime.utcfromtimestamp (item.chromeRequest['wallTime'])),
                 }
-        try:
-            bodyTruncated = None
-            payload, payloadBase64Encoded = item.requestBody
-        except ValueError:
-            # oops, don’t know what went wrong here
-            bodyTruncated = 'unspecified'
-            logger.error ('requestBody missing', uuid='ee9adc58-e723-4595-9feb-312a67ead6a0')
 
-        if bodyTruncated:
-            warcHeaders['WARC-Truncated'] = bodyTruncated
+        if item.requestBody is not None:
+            payload, payloadBase64Encoded = item.requestBody
+        else:
+            # oops, don’t know what went wrong here
+            logger.error ('requestBody missing', uuid='ee9adc58-e723-4595-9feb-312a67ead6a0')
+            warcHeaders['WARC-Truncated'] = 'unspecified'
             payload = None
 
         if payload:
@@ -127,22 +122,13 @@ class WarcHandler (EventHandler):
         rawBody = None
         base64Encoded = False
         bodyTruncated = None
-        if item.isRedirect:
+        if item.isRedirect or item.body is None:
             # redirects reuse the same request, thus we cannot safely retrieve
             # the body (i.e getResponseBody may return the new location’s
-            # body).
+            # body). No body available means we failed to retrieve it.
             bodyTruncated = 'unspecified'
-        elif item.encodedDataLength > self.maxBodySize:
-            bodyTruncated = 'length'
-            # check body size first, since we’re loading everything into memory
-            self.logger.error ('body for {} too large {} vs {}'.format (reqId,
-                    item.encodedDataLength, self.maxBodySize))
         else:
-            try:
-                rawBody, base64Encoded = item.body
-            except ValueError:
-                # oops, don’t know what went wrong here
-                bodyTruncated = 'unspecified'
+            rawBody, base64Encoded = item.body
 
         # now the response
         resp = item.response

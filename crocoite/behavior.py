@@ -22,19 +22,19 @@
 Generic and per-site behavior scripts
 """
 
-import time
+import asyncio
 from urllib.parse import urlsplit
 import os.path
-import pkg_resources
 from base64 import b64decode
 from collections import OrderedDict
+import pkg_resources
 
 from html5lib.serializer import HTMLSerializer
-from pychrome.exceptions import TimeoutException
 
 from .util import randomString, getFormattedViewportMetrics, removeFragment
 from . import html
 from .html import StripAttributeFilter, StripTagFilter, ChromeTreeWalker
+from .devtools import Crashed
 
 class Script:
     """ A JavaScript resource """
@@ -78,17 +78,21 @@ class Behavior:
     def __repr__ (self):
         return '<Behavior {}>'.format (self.name)
 
-    def onload (self):
+    async def onload (self):
         """ Before loading the page """
-        yield from ()
+        # this is a dirty hack to make this function an async generator
+        return
+        yield
 
-    def onstop (self):
+    async def onstop (self):
         """ Before page loading is stopped """
-        yield from ()
+        return
+        yield
 
-    def onfinish (self):
+    async def onfinish (self):
         """ After the site has stopped loading """
-        yield from ()
+        return
+        yield
 
 class HostnameFilter:
     """ Limit behavior script to hostname """
@@ -112,20 +116,21 @@ class JsOnload (Behavior):
         self.script = Script (self.scriptPath)
         self.scriptHandle = None
 
-    def onload (self):
+    async def onload (self):
         yield self.script
-        result = self.loader.tab.Page.addScriptToEvaluateOnNewDocument (source=str (self.script))
+        result = await self.loader.tab.Page.addScriptToEvaluateOnNewDocument (source=str (self.script))
         self.scriptHandle = result['identifier']
 
-    def onstop (self):
+    async def onstop (self):
         if self.scriptHandle:
-            self.loader.tab.Page.removeScriptToEvaluateOnNewDocument (identifier=self.scriptHandle)
-        yield from ()
+            await self.loader.tab.Page.removeScriptToEvaluateOnNewDocument (identifier=self.scriptHandle)
+        return
+        yield
 
 ### Generic scripts ###
 
 class Scroll (JsOnload):
-    __slots__ = ('stopVarname')
+    __slots__ = ('stopVarname', )
 
     name = 'scroll'
     scriptPath = 'scroll.js'
@@ -137,17 +142,17 @@ class Scroll (JsOnload):
         self.script.data = self.script.data.replace (stopVarname, newStopVarname)
         self.stopVarname = newStopVarname
 
-    def onstop (self):
+    async def onstop (self):
         super ().onstop ()
         # removing the script does not stop it if running
         script = Script.fromStr ('{} = true; window.scrollTo (0, 0);'.format (self.stopVarname))
         yield script
-        self.loader.tab.Runtime.evaluate (expression=str (script), returnByValue=True)
+        await self.loader.tab.Runtime.evaluate (expression=str (script), returnByValue=True)
 
 class EmulateScreenMetrics (Behavior):
     name = 'emulateScreenMetrics'
 
-    def onstop (self):
+    async def onstop (self):
         """
         Emulate different screen sizes, causing the site to fetch assets (img
         srcset and css, for example) for different screen resolutions.
@@ -169,12 +174,14 @@ class EmulateScreenMetrics (Behavior):
         l = self.loader
         tab = l.tab
         for s in sizes:
-            tab.Emulation.setDeviceMetricsOverride (**s)
+            await tab.Emulation.setDeviceMetricsOverride (**s)
             # give the browser time to re-eval page and start requests
-            time.sleep (1)
+            # XXX: should wait until loader is not busy any more
+            await asyncio.sleep (1)
         # XXX: this seems to be broken, it does not clear the override
         #tab.Emulation.clearDeviceMetricsOverride ()
-        yield from ()
+        return
+        yield
 
 class DomSnapshotEvent:
     __slots__ = ('url', 'document', 'viewport')
@@ -195,7 +202,7 @@ class DomSnapshot (Behavior):
     can’t handle that though.
     """
 
-    __slots__ = ('script')
+    __slots__ = ('script', )
 
     name = 'domSnapshot'
 
@@ -203,14 +210,14 @@ class DomSnapshot (Behavior):
         super ().__init__ (loader, logger)
         self.script = Script ('canvas-snapshot.js')
 
-    def onfinish (self):
+    async def onfinish (self):
         tab = self.loader.tab
 
         yield self.script
-        tab.Runtime.evaluate (expression=str (self.script), returnByValue=True)
+        await tab.Runtime.evaluate (expression=str (self.script), returnByValue=True)
 
-        viewport = getFormattedViewportMetrics (tab)
-        dom = tab.DOM.getDocument (depth=-1, pierce=True)
+        viewport = await getFormattedViewportMetrics (tab)
+        dom = await tab.DOM.getDocument (depth=-1, pierce=True)
         haveUrls = set ()
         for doc in ChromeTreeWalker (dom['root']).split ():
             rawUrl = doc['documentURL']
@@ -247,10 +254,10 @@ class Screenshot (Behavior):
 
     name = 'screenshot'
 
-    def onfinish (self):
+    async def onfinish (self):
         tab = self.loader.tab
 
-        tree = tab.Page.getFrameTree ()
+        tree = await tab.Page.getFrameTree ()
         try:
             url = removeFragment (tree['frameTree']['frame']['url'])
         except KeyError:
@@ -260,7 +267,7 @@ class Screenshot (Behavior):
         # see https://github.com/GoogleChrome/puppeteer/blob/230be28b067b521f0577206899db01f0ca7fc0d2/examples/screenshots-longpage.js
         # Hardcoded max texture size of 16,384 (crbug.com/770769)
         maxDim = 16*1024
-        metrics = tab.Page.getLayoutMetrics ()
+        metrics = await tab.Page.getLayoutMetrics ()
         contentSize = metrics['contentSize']
         width = min (contentSize['width'], maxDim)
         # we’re ignoring horizontal scroll intentionally. Most horizontal
@@ -268,7 +275,8 @@ class Screenshot (Behavior):
         for yoff in range (0, contentSize['height'], maxDim):
             height = min (contentSize['height'] - yoff, maxDim)
             clip = {'x': 0, 'y': yoff, 'width': width, 'height': height, 'scale': 1}
-            data = b64decode (tab.Page.captureScreenshot (format='png', clip=clip)['data'])
+            ret = await tab.Page.captureScreenshot (format='png', clip=clip)
+            data = b64decode (ret['data'])
             yield ScreenshotEvent (url, yoff, data)
 
 class Click (JsOnload):
@@ -278,7 +286,7 @@ class Click (JsOnload):
     scriptPath = 'click.js'
 
 class ExtractLinksEvent:
-    __slots__ = ('links')
+    __slots__ = ('links', )
 
     def __init__ (self, links):
         self.links = links
@@ -291,7 +299,7 @@ class ExtractLinks (Behavior):
     manually resolve relative links.
     """
 
-    __slots__ = ('script')
+    __slots__ = ('script', )
 
     name = 'extractLinks'
 
@@ -299,10 +307,10 @@ class ExtractLinks (Behavior):
         super ().__init__ (loader, logger)
         self.script = Script ('extract-links.js')
 
-    def onfinish (self):
+    async def onfinish (self):
         tab = self.loader.tab
         yield self.script
-        result = tab.Runtime.evaluate (expression=str (self.script), returnByValue=True)
+        result = await tab.Runtime.evaluate (expression=str (self.script), returnByValue=True)
         yield ExtractLinksEvent (list (set (result['result']['value'])))
 
 class Crash (Behavior):
@@ -310,18 +318,17 @@ class Crash (Behavior):
 
     name = 'crash'
 
-    def onstop (self):
+    async def onstop (self):
         try:
-            self.loader.tab.Page.crash (_timeout=1)
-        except TimeoutException:
+            await self.loader.tab.Page.crash ()
+        except Crashed:
             pass
-        yield from ()
+        return
+        yield
 
 # available behavior scripts. Order matters, move those modifying the page
 # towards the end of available
-generic = [Scroll, EmulateScreenMetrics, Click, ExtractLinks]
-perSite = []
-available = generic + perSite + [Screenshot, DomSnapshot]
+available = [Scroll, Click, ExtractLinks, Screenshot, EmulateScreenMetrics, DomSnapshot]
 #available.append (Crash)
 # order matters, since behavior can modify the page (dom snapshots, for instance)
 availableMap = OrderedDict (map (lambda x: (x.name, x), available))

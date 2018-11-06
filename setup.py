@@ -10,7 +10,6 @@ setup(
     description='Save website to WARC using Google Chrome.',
     long_description=open('README.rst').read(),
     install_requires=[
-        'pychrome',
         'warcio',
         'html5lib>=0.999999999',
         'bottom',
