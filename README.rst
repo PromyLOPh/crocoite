@@ -14,12 +14,14 @@ Quick start
 The following dependencies must be present to run crocoite:
 
 - Python 3
-- pychrome_ 
+- aiohttp_
+- websockets_
 - warcio_
 - html5lib_
 - bottom_ (IRC client)
 
-.. _pychrome: https://github.com/fate0/pychrome
+.. _aiohttp: https://aiohttp.readthedocs.io/
+.. _websockets: https://websockets.readthedocs.io/
 .. _warcio: https://github.com/webrecorder/warcio
 .. _html5lib: https://github.com/html5lib/html5lib-python
 .. _bottom: https://github.com/numberoverzero/bottom
