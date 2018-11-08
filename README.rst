@@ -13,7 +13,7 @@ Quick start
 
 The following dependencies must be present to run crocoite:
 
-- Python 3
+- Python ≥3.6
 - aiohttp_
 - websockets_
 - warcio_
