@@ -151,3 +151,13 @@ def test_tab_function_hash (tab):
     d = {tab.Network.enable: 1, tab.Network.disable: 2, tab.Page: 3, tab.Page.enable: 4}
     assert len (d) == 4
 
+@pytest.mark.asyncio
+async def test_ws_ping(tab):
+    """
+    Chrome does not like websocket pings and closes the connection if it
+    receives one. Not sure why.
+    """
+    with pytest.raises (Crashed):
+        await tab.ws.ping ()
+        await tab.Browser.getVersion ()
+

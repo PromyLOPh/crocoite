@@ -245,8 +245,9 @@ class Tab:
         # increase size limit of a single frame to something ridiciously high,
         # so we can safely grab screenshots
         maxSize = 100*1024*1024 # 100 MB
+        # chrome does not like pings and kills the connection, disable them
         ws = await websockets.connect(kwargs['webSocketDebuggerUrl'],
-                max_size=maxSize)
+                max_size=maxSize, ping_interval=None)
         ret = cls (kwargs['id'], ws)
         await ret.run ()
         return ret
