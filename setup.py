@@ -23,7 +23,7 @@ setup(
             'crocoite-recursive = crocoite.cli:recursive',
             'crocoite-irc = crocoite.cli:irc',
             'crocoite-irc-dashboard = crocoite.cli:dashboard',
-            'crocoite-merge-warc = crocoite.tools:mergeWarc',
+            'crocoite-merge-warc = crocoite.tools:mergeWarcCli',
             'crocoite-extract-screenshot = crocoite.tools:extractScreenshot',
             ],
     },
