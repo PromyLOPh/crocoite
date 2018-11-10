@@ -26,26 +26,12 @@ import shutil, sys, re, os, logging, argparse
 from warcio.archiveiterator import ArchiveIterator
 from warcio.warcwriter import WARCWriter
 
-def mergeWarc ():
-    """
-    Merge multiple WARC files into a single file, writing revisit records for
-    items which occur multiple times
-    """
-
-    parser = argparse.ArgumentParser(description='Merge WARCs, reads filenames from stdin.')
-    parser.add_argument('--verbose', '-v', action='store_true')
-    parser.add_argument('output', type=argparse.FileType ('wb'), help='Output WARC')
-
-    args = parser.parse_args()
-    loglevel = logging.DEBUG if args.verbose else logging.INFO
-    logging.basicConfig (level=loglevel)
-
+def mergeWarc (files, output):
     unique = 0
     revisit = 0
     payloadMap = {}
-    writer = WARCWriter (args.output, gzip=True)
-    for l in sys.stdin:
-        l = l.strip ()
+    writer = WARCWriter (output, gzip=True)
+    for l in files:
         with open (l, 'rb') as fd:
             for record in ArchiveIterator (fd):
                 if record.rec_type in {'resource', 'response'}:
@@ -59,7 +45,9 @@ def mergeWarc ():
                         unique += 1
                     else:
                         logging.debug ('Record {} is duplicate of {}'.format (rid, dup['id']))
-                        record = writer.create_revisit_record (dup['uri'], csum, dup['uri'], dup['date'])
+                        record = writer.create_revisit_record (
+                                headers.get_header('WARC-Target-URI'), digest=csum,
+                                refers_to_uri=dup['uri'], refers_to_date=dup['date'])
                         record.rec_headers.add_header ('WARC-Truncated', 'length')
                         record.rec_headers.add_header ('WARC-Refers-To', dup['id'])
                         revisit += 1
@@ -67,6 +55,17 @@ def mergeWarc ():
                     unique += 1
                 writer.write_record (record)
     logging.info ('Wrote {} unique records, {} revisits'.format (unique, revisit))
+
+def mergeWarcCli():
+    parser = argparse.ArgumentParser(description='Merge WARCs, reads filenames from stdin.')
+    parser.add_argument('--verbose', '-v', action='store_true')
+    parser.add_argument('output', type=argparse.FileType ('wb'), help='Output WARC')
+
+    args = parser.parse_args()
+    loglevel = logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig (level=loglevel)
+
+    mergeWarc([l.strip() for l in sys.stdin], args.output)
 
 def extractScreenshot ():
     """
