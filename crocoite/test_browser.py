@@ -25,9 +25,9 @@ from operator import itemgetter
 from aiohttp import web
 from http.server import BaseHTTPRequestHandler
 
-from .browser import Item, SiteLoader, ChromeService, NullService
+from .browser import Item, SiteLoader
 from .logger import Logger, Consumer, JsonPrintConsumer
-from .devtools import Crashed
+from .devtools import Crashed, Process
 
 # if you want to know what’s going on:
 #logging.basicConfig(level=logging.DEBUG)
@@ -122,12 +122,12 @@ def logger ():
     return Logger (consumer=[AssertConsumer ()])
 
 @pytest.fixture
-def loader (server, logger):
+async def loader (server, logger):
     def f (path):
         if path.startswith ('/'):
             path = 'http://localhost:8080{}'.format (path)
         return SiteLoader (browser, path, logger)
-    with ChromeService () as browser:
+    async with Process () as browser:
         yield f
 
 async def itemsLoaded (l, items):
@@ -227,11 +227,4 @@ async def test_invalidurl (loader):
         async for it in l:
             assert it.failed
             break
-
-def test_nullservice ():
-    """ Null service returns the url as is """
-
-    url = 'http://localhost:12345'
-    with NullService (url) as u:
-        assert u == url
 

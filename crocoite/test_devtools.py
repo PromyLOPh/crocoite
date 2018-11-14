@@ -24,12 +24,11 @@ import pytest
 from aiohttp import web
 import websockets
 
-from .browser import ChromeService, NullService
-from .devtools import Browser, Tab, MethodNotFound, Crashed, InvalidParameter
+from .devtools import Browser, Tab, MethodNotFound, Crashed, InvalidParameter, Process, Passthrough
 
 @pytest.fixture
 async def browser ():
-    with ChromeService () as url:
+    async with Process () as url:
         yield Browser (url)
 
 @pytest.fixture
@@ -138,7 +137,8 @@ async def test_recv_failure(browser):
         with pytest.raises (Crashed):
             await handle
 
-def test_tab_function (tab):
+@pytest.mark.asyncio
+async def test_tab_function (tab):
     assert tab.Network.enable.name == 'Network.enable'
     assert tab.Network.disable == tab.Network.disable
     assert tab.Network.enable != tab.Network.disable
@@ -147,7 +147,8 @@ def test_tab_function (tab):
     assert not callable (tab.Network.enable.name)
     assert 'Network.enable' in repr (tab.Network.enable)
 
-def test_tab_function_hash (tab):
+@pytest.mark.asyncio
+async def test_tab_function_hash (tab):
     d = {tab.Network.enable: 1, tab.Network.disable: 2, tab.Page: 3, tab.Page.enable: 4}
     assert len (d) == 4
 
@@ -160,4 +161,12 @@ async def test_ws_ping(tab):
     with pytest.raises (Crashed):
         await tab.ws.ping ()
         await tab.Browser.getVersion ()
+
+@pytest.mark.asyncio
+async def test_passthrough ():
+    """ Null service returns the url as is """
+
+    url = 'http://localhost:12345'
+    async with Passthrough (url) as u:
+        assert u == url
 

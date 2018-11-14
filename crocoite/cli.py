@@ -28,7 +28,7 @@ from enum import IntEnum
 from . import behavior
 from .controller import SinglePageController, defaultSettings, \
         ControllerSettings, StatsHandler, LogHandler
-from .browser import NullService, ChromeService
+from .devtools import Passthrough, Process
 from .warc import WarcHandler
 from .logger import Logger, JsonPrintConsumer, DatetimeConsumer, WarcHandlerConsumer
 from .devtools import Crashed
@@ -56,9 +56,9 @@ def single ():
     logger = Logger (consumer=[DatetimeConsumer (), JsonPrintConsumer ()])
 
     ret = SingleExitStatus.Fail
-    service = ChromeService ()
+    service = Process ()
     if args.browser:
-        service = NullService (args.browser)
+        service = Passthrough (args.browser)
     settings = ControllerSettings (idleTimeout=args.idleTimeout, timeout=args.timeout)
     with open (args.output, 'wb') as fd, WarcHandler (fd, logger) as warcHandler:
         logger.connect (WarcHandlerConsumer (warcHandler))

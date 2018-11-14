@@ -89,7 +89,8 @@ class LogHandler (EventHandler):
 import time, platform
 
 from . import behavior as cbehavior
-from .browser import ChromeService, SiteLoader, Item
+from .browser import SiteLoader, Item
+from .devtools import Process
 from .util import getFormattedViewportMetrics, getRequirements
 
 class ControllerStart:
@@ -109,7 +110,7 @@ class SinglePageController:
     __slots__ = ('url', 'output', 'service', 'behavior', 'settings', 'logger', 'handler')
 
     def __init__ (self, url, output, logger, \
-            service=ChromeService (), behavior=cbehavior.available, \
+            service, behavior=cbehavior.available, \
             settings=defaultSettings, handler=[]):
         self.url = url
         self.output = output
@@ -129,75 +130,74 @@ class SinglePageController:
             async for item in l:
                 self.processItem (item)
 
-        with self.service as browser:
-            async with SiteLoader (browser, self.url, logger=logger) as l:
-                handle = asyncio.ensure_future (processQueue ())
+        async with self.service as browser, SiteLoader (browser, self.url, logger=logger) as l:
+            handle = asyncio.ensure_future (processQueue ())
 
-                start = time.time ()
+            start = time.time ()
 
-                version = await l.tab.Browser.getVersion ()
-                payload = {
-                        'software': {
-                            'platform': platform.platform (),
-                            'python': {
-                                'implementation': platform.python_implementation(),
-                                'version': platform.python_version (),
-                                'build': platform.python_build ()
-                                },
-                            'self': getRequirements (__package__)
+            version = await l.tab.Browser.getVersion ()
+            payload = {
+                    'software': {
+                        'platform': platform.platform (),
+                        'python': {
+                            'implementation': platform.python_implementation(),
+                            'version': platform.python_version (),
+                            'build': platform.python_build ()
                             },
-                        'browser': {
-                            'product': version['product'],
-                            'useragent': version['userAgent'],
-                            'viewport': await getFormattedViewportMetrics (l.tab),
-                            },
-                        }
-                self.processItem (ControllerStart (payload))
+                        'self': getRequirements (__package__)
+                        },
+                    'browser': {
+                        'product': version['product'],
+                        'useragent': version['userAgent'],
+                        'viewport': await getFormattedViewportMetrics (l.tab),
+                        },
+                    }
+            self.processItem (ControllerStart (payload))
 
-                # not all behavior scripts are allowed for every URL, filter them
-                enabledBehavior = list (filter (lambda x: self.url in x,
-                        map (lambda x: x (l, logger), self.behavior)))
+            # not all behavior scripts are allowed for every URL, filter them
+            enabledBehavior = list (filter (lambda x: self.url in x,
+                    map (lambda x: x (l, logger), self.behavior)))
 
-                for b in enabledBehavior:
-                    async for item in b.onload ():
-                        self.processItem (item)
-                await l.start ()
+            for b in enabledBehavior:
+                async for item in b.onload ():
+                    self.processItem (item)
+            await l.start ()
 
-                # XXX: this does not detect idle changes properly
-                idleSince = None
-                while True:
-                    now = time.time()
-                    runtime = now-start
-                    if runtime >= self.settings.timeout or (idleSince and now-idleSince > self.settings.idleTimeout):
-                        break
-                    if len (l) == 0:
-                        if idleSince is None:
-                            idleSince = time.time ()
-                    else:
-                        idleSince = None
-                    await asyncio.sleep (1)
-                await l.tab.Page.stopLoading ()
+            # XXX: this does not detect idle changes properly
+            idleSince = None
+            while True:
+                now = time.time()
+                runtime = now-start
+                if runtime >= self.settings.timeout or (idleSince and now-idleSince > self.settings.idleTimeout):
+                    break
+                if len (l) == 0:
+                    if idleSince is None:
+                        idleSince = time.time ()
+                else:
+                    idleSince = None
+                await asyncio.sleep (1)
+            await l.tab.Page.stopLoading ()
 
-                for b in enabledBehavior:
-                    async for item in b.onstop ():
-                        self.processItem (item)
+            for b in enabledBehavior:
+                async for item in b.onstop ():
+                    self.processItem (item)
 
+            await asyncio.sleep (1)
+
+            for b in enabledBehavior:
+                async for item in b.onfinish ():
+                    self.processItem (item)
+
+            # drain the queue XXX detect idle properly
+            i = 0
+            while len (l) and i < 20:
+                i += 1
                 await asyncio.sleep (1)
 
-                for b in enabledBehavior:
-                    async for item in b.onfinish ():
-                        self.processItem (item)
-
-                # drain the queue XXX detect idle properly
-                i = 0
-                while len (l) and i < 20:
-                    i += 1
-                    await asyncio.sleep (1)
-
-                if handle.done ():
-                    handle.result ()
-                else:
-                    handle.cancel ()
+            if handle.done ():
+                handle.result ()
+            else:
+                handle.cancel ()
 
 class RecursionPolicy:
     """ Abstract recursion policy """

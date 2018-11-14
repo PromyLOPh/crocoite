@@ -252,3 +252,77 @@ class Tab:
         await ret.run ()
         return ret
 
+import os, time
+from tempfile import mkdtemp
+import shutil
+
+class Process:
+    """ Start Google Chrome listening on a random port """
+
+    __slots__ = ('binary', 'windowSize', 'p', 'userDataDir')
+
+    def __init__ (self, binary='google-chrome-stable', windowSize=(1920, 1080)):
+        self.binary = binary
+        self.windowSize = windowSize
+        self.p = None
+
+    async def __aenter__ (self):
+        assert self.p is None
+        self.userDataDir = mkdtemp ()
+        args = [self.binary,
+                '--window-size={},{}'.format (*self.windowSize),
+                '--user-data-dir={}'.format (self.userDataDir), # use temporory user dir
+                '--no-default-browser-check',
+                '--no-first-run', # don’t show first run screen
+                '--disable-breakpad', # no error reports
+                '--disable-extensions',
+                '--disable-infobars',
+                '--disable-notifications', # no libnotify
+                '--headless',
+                '--disable-gpu',
+                '--hide-scrollbars', # hide scrollbars on screenshots
+                '--mute-audio', # don’t play any audio
+                '--remote-debugging-port=0', # pick a port. XXX: we may want to use --remote-debugging-pipe instead
+                '--homepage=about:blank',
+                'about:blank']
+        # start new session, so ^C does not affect subprocess
+        self.p = await asyncio.create_subprocess_exec (*args,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+                stdin=asyncio.subprocess.DEVNULL,
+                start_new_session=True)
+        port = None
+        # chrome writes its current active devtools port to a file. due to the
+        # sleep() this is rather ugly, but should work with all versions of the
+        # browser.
+        for i in range (100):
+            try:
+                with open (os.path.join (self.userDataDir, 'DevToolsActivePort'), 'r') as fd:
+                    port = int (fd.readline ().strip ())
+                    break
+            except FileNotFoundError:
+                await asyncio.sleep (0.2)
+        if port is None:
+            raise Exception ('Chrome died on us.')
+
+        return 'http://localhost:{}'.format (port)
+
+    async def __aexit__ (self, *exc):
+        self.p.terminate ()
+        await self.p.wait ()
+        shutil.rmtree (self.userDataDir)
+        self.p = None
+        return False
+
+class Passthrough:
+    __slots__ = ('url')
+
+    def __init__ (self, url):
+        self.url = url
+
+    async def __aenter__ (self):
+        return self.url
+
+    async def __aexit__ (self, *exc):
+        return False
+
