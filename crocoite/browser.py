@@ -182,11 +182,8 @@ class SiteLoader:
                 tab.Page.enable (),
                 tab.Inspector.enable (),
                 tab.Network.clearBrowserCache (),
+                tab.Network.clearBrowserCookies (),
                 ])
-        resp = await tab.Network.canClearBrowserCookies ()
-        if resp['result']:
-            await tab.Network.clearBrowserCookies ()
-
         return self
 
     async def __aexit__ (self, exc_type, exc_value, traceback):
