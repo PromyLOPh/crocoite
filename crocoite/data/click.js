@@ -71,6 +71,16 @@ const sites = Object.freeze ([
 			/* load more replies */
 			{s: 'div > a[scale="0"][color=blue][size="1"]', flags: selectorFlag.none},
 			],
+	}, {
+		hostname: /^(www\.)?gab\.ai$/i,
+		selector: [
+			/* post comments */
+			{s: 'post-detail post-comment .post-comment__replies__count a', flags: selectorFlag.none},
+			/* more comments */
+			{s: 'post-detail .post-comment-list__loading a', flags: selectorFlag.none},
+			/* more posts */
+			{s: 'post-list a.post-list__load-more', flags: selectorFlag.multi},
+			],
 	}
 	]);
 
