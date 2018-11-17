@@ -85,7 +85,7 @@ class Logger:
         self.consumer.remove (consumer)
 
 class Consumer:
-    def __call__ (self, level, *args, **kwargs):
+    def __call__ (self, level, *args, **kwargs): # pragma: no cover
         raise NotImplementedError ()
 
 class NullConsumer (Consumer):

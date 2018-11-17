@@ -1,9 +1,9 @@
 import pytest
-from .logger import Logger, Consumer, NullConsumer
+from .logger import Logger, Consumer, NullConsumer, Level, DatetimeConsumer
 
 @pytest.fixture
 def logger ():
-    return Logger (consumer=[NullConsumer ()])
+    return Logger (consumer=[NullConsumer (), DatetimeConsumer ()])
 
 class QueueConsumer (Consumer):
     def __init__ (self):
@@ -57,4 +57,26 @@ def test_consumer (logger):
     assert len (c.data) == 0
     assert ret['foo'] == 'bar'
     assert ret['inherit'] == 1
+
+def test_multiarg (logger):
+    # single argument
+    ret = logger.debug('maybe', foo='bar')
+    assert ret['msg'] == 'maybe'
+    assert ret['foo'] == 'bar'
+
+    # multi arguments
+    ret = logger.debug('may', 'be', foo='bar')
+    assert ret['msg'] == ('may', 'be')
+    assert ret['foo'] == 'bar'
+
+def test_call (logger):
+    for level in ('debug', Level.DEBUG):
+        ret = logger(level, 'arg1', 'arg2', foo='bar')
+        assert ret['level'] == Level.DEBUG
+        assert ret['msg'] == ('arg1', 'arg2')
+        assert ret['foo'] == 'bar'
+
+def test_datetime (logger):
+    ret = logger.debug()
+    assert 'date' in ret
 
