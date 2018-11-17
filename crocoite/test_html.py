@@ -22,7 +22,8 @@ import pytest, html5lib
 from html5lib.serializer import HTMLSerializer
 from html5lib.treewalkers import getTreeWalker
 
-from .html import StripTagFilter, StripAttributeFilter
+from .html import StripTagFilter, StripAttributeFilter, ChromeTreeWalker
+from .test_devtools import tab, browser
 
 def test_strip_tag ():
     d = html5lib.parse ('<a>barbaz<b>foobar</b>.</a><b>foobar</b>.<b attr=1><c></c>')
@@ -35,4 +36,25 @@ def test_strip_attribute ():
     stream = StripAttributeFilter (getTreeWalker ('etree')(d), ['b', 'c', 'd'])
     serializer = HTMLSerializer ()
     assert serializer.render (stream) == '<a></a><br keep=1>'
+
+@pytest.mark.asyncio
+async def test_treewalker (tab):
+    frames = await tab.Page.getFrameTree ()
+
+    framehtml = '<HTML><HEAD></HEAD><BODY></BODY></HTML>'
+    html = '<HTML><HEAD><META charset=utf-8></HEAD><BODY><H1>Hello</H1><!-- comment --><IFRAME></IFRAME></BODY></HTML>'
+    rootframe = frames['frameTree']['frame']['id']
+    await tab.Page.setDocumentContent (frameId=rootframe, html=html)
+
+    dom = await tab.DOM.getDocument (depth=-1, pierce=True)
+    docs = list (ChromeTreeWalker (dom['root']).split ())
+    assert len(docs) == 2
+    for i, doc in enumerate (docs):
+        walker = ChromeTreeWalker (doc)
+        serializer = HTMLSerializer ()
+        result = serializer.render (iter(walker))
+        if i == 0:
+            assert result == html
+        elif i == 1:
+            assert result == framehtml
 
