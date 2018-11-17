@@ -34,14 +34,16 @@ def writer():
 
 def recordsEqual(golden, underTest):
     for a, b in zip (golden, underTest):
-        # record ids are not predictable, so we cannot compare them
-        a.rec_headers.remove_header('WARC-Record-Id')
-        a.rec_headers.remove_header('WARC-Block-Digest')
-        b.rec_headers.remove_header('WARC-Record-Id')
-        b.rec_headers.remove_header('WARC-Block-Digest')
+        # record ids are not predictable, so we cannot compare them. Dito for
+        # dates. Content-* seems to be added when writing to file.
+        for x in {'WARC-Record-Id', 'WARC-Block-Digest', 'WARC-Date',
+                'Content-Length', 'Content-Type'}:
+            a.rec_headers.remove_header(x)
+            b.rec_headers.remove_header(x)
         aheader = sorted(a.rec_headers.headers, key=itemgetter(0))
         bheader = sorted(b.rec_headers.headers, key=itemgetter(0))
         assert aheader == bheader
+        assert a.http_headers == b.http_headers
 
 def test_unmodified(writer):
     """
@@ -101,16 +103,13 @@ def makeRevisit(writer, ref, dup):
     """ Make revisit record for reference """
     dupHeaders = dup.rec_headers
     refHeaders = ref.rec_headers
-    httpHeaders = StatusAndHeaders('200 OK', {}, protocol='HTTP/1.1')
     record = writer.create_revisit_record (dupHeaders.get_header('WARC-Target-URI'),
             digest=refHeaders.get_header('WARC-Payload-Digest'),
             refers_to_uri=refHeaders.get_header('WARC-Target-URI'),
-            refers_to_date=refHeaders.get_header('WARC-Date'))
+            refers_to_date=refHeaders.get_header('WARC-Date'),
+            http_headers=dup.http_headers)
     record.rec_headers.add_header ('WARC-Refers-To', refHeaders.get_header('WARC-Record-ID'))
     record.rec_headers.add_header ('WARC-Truncated', 'length')
-    record.rec_headers.add_header ('Content-Length', '0')
-    # XXX: added by warcio, but this seems wrong
-    record.rec_headers.add_header ('Content-Type', 'application/http; msgtype=response')
     return record
 
 def test_resp_revisit_same_url(writer):

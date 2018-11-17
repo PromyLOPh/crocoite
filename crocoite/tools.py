@@ -45,9 +45,12 @@ def mergeWarc (files, output):
                         unique += 1
                     else:
                         logging.debug ('Record {} is duplicate of {}'.format (rid, dup['id']))
+                        # Payload may be identical, but HTTP headers are
+                        # (probably) not. Include them.
                         record = writer.create_revisit_record (
                                 headers.get_header('WARC-Target-URI'), digest=csum,
-                                refers_to_uri=dup['uri'], refers_to_date=dup['date'])
+                                refers_to_uri=dup['uri'], refers_to_date=dup['date'],
+                                http_headers=record.http_headers)
                         record.rec_headers.add_header ('WARC-Truncated', 'length')
                         record.rec_headers.add_header ('WARC-Refers-To', dup['id'])
                         revisit += 1
