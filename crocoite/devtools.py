@@ -269,6 +269,7 @@ class Process:
     async def __aenter__ (self):
         assert self.p is None
         self.userDataDir = mkdtemp ()
+        # see https://github.com/GoogleChrome/chrome-launcher/blob/master/docs/chrome-flags-for-tools.md
         args = [self.binary,
                 '--window-size={},{}'.format (*self.windowSize),
                 '--user-data-dir={}'.format (self.userDataDir), # use temporory user dir
@@ -278,6 +279,17 @@ class Process:
                 '--disable-extensions',
                 '--disable-infobars',
                 '--disable-notifications', # no libnotify
+                '--disable-background-networking', # disable background services (updating, safe browsing, …)
+                '--safebrowsing-disable-auto-update',
+                '--disable-sync', # no google account syncing
+                '--metrics-recording-only', # do not submit metrics
+                '--disable-default-apps',
+                '--disable-background-timer-throttling',
+                '--disable-client-side-phishing-detection',
+                '--disable-popup-blocking',
+                '--disable-prompt-on-repost',
+                '--enable-automation', # enable various automation-related things
+                '--password-store=basic',
                 '--headless',
                 '--disable-gpu',
                 '--hide-scrollbars', # hide scrollbars on screenshots
