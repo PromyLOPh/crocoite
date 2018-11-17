@@ -66,6 +66,13 @@ testItems = [
             # 1×1 png image
             b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x00\x00\x00\x00:~\x9bU\x00\x00\x00\nIDAT\x08\x1dc\xf8\x0f\x00\x01\x01\x01\x006_g\x80\x00\x00\x00\x00IEND\xaeB`\x82'),
     TItem ('empty', 200, {'Content-Type': 'text/plain'}, b''),
+    TItem ('headers/duplicate', 200, [('Content-Type', 'text/plain'), ('Duplicate', '1'), ('Duplicate', '2')], b''),
+    TItem ('headers/fetch/req', 200, {'Content-Type': 'text/plain'}, b''),
+    TItem ('headers/fetch/html', 200, {'Content-Type': 'text/html'},
+            r"""<html><body><script>
+            let h = new Headers([["custom", "1"]]);
+            fetch("/headers/fetch/req", {"method": "GET", "headers": h}).then(x => console.log("done"));
+            </script></body></html>""".encode ('utf8')),
     TItem ('redirect/301/empty', 301, {'Location': '/empty'}, b'', isRedirect=True),
     TItem ('redirect/301/redirect/301/empty', 301, {'Location': '/redirect/301/empty'}, b'', isRedirect=True),
     TItem ('nonexistent', 404, {}, b''),
@@ -168,6 +175,38 @@ async def literalItem (lf, item, deps=[]):
 @pytest.mark.asyncio
 async def test_empty (loader):
     await literalItem (loader, testItemMap['/empty'])
+
+@pytest.mark.asyncio
+async def test_headers_duplicate (loader):
+    """
+    Some headers, like Set-Cookie can be present multiple times. Chrome
+    separates these with a newline.
+    """
+    async with loader ('/headers/duplicate') as l:
+        await l.start ()
+        async for it in l:
+            if it.parsedUrl.path == '/headers/duplicate':
+                assert not it.failed
+                dup = list (filter (lambda x: x[0] == 'Duplicate', it.responseHeaders))
+                assert len(dup) == 2
+                assert list(sorted(map(itemgetter(1), dup))) == ['1', '2']
+                break
+
+@pytest.mark.asyncio
+async def test_headers_req (loader):
+    """
+    Custom request headers. JavaScript’s Headers() does not support duplicate
+    headers, so we can’t generate those.
+    """
+    async with loader ('/headers/fetch/html') as l:
+        await l.start ()
+        async for it in l:
+            if it.parsedUrl.path == '/headers/fetch/req':
+                assert not it.failed
+                dup = list (filter (lambda x: x[0] == 'custom', it.requestHeaders))
+                assert len(dup) == 1
+                assert list(sorted(map(itemgetter(1), dup))) == ['1']
+                break
 
 @pytest.mark.asyncio
 async def test_redirect (loader):
