@@ -23,7 +23,7 @@ Random utility functions
 """
 
 import random, sys
-import hashlib, os, pkg_resources
+import hashlib, pkg_resources
 from urllib.parse import urlsplit, urlunsplit
 
 def randomString (length=None, chars='abcdefghijklmnopqrstuvwxyz'):

@@ -18,7 +18,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import logging
 import asyncio
 import pytest
 from operator import itemgetter
@@ -26,7 +25,7 @@ from aiohttp import web
 from http.server import BaseHTTPRequestHandler
 
 from .browser import Item, SiteLoader
-from .logger import Logger, Consumer, JsonPrintConsumer
+from .logger import Logger, Consumer
 from .devtools import Crashed, Process
 
 # if you want to know what’s going on:
@@ -39,7 +38,7 @@ class TItem (Item):
     base = 'http://localhost:8000/'
 
     def __init__ (self, path, status, headers, bodyReceive, bodySend=None, requestBody=None, failed=False, isRedirect=False):
-        super ().__init__ (tab=None)
+        super ().__init__ ()
         self.chromeResponse = {'response': {'headers': headers, 'status': status, 'url': self.base + path}}
         self.body = bodyReceive, False
         self.bodySend = bodyReceive if not bodySend else bodySend

@@ -22,12 +22,13 @@
 Command line interface
 """
 
-import argparse, json, sys, signal
+import argparse, sys, signal, asyncio, os
 from enum import IntEnum
 
 from . import behavior
-from .controller import SinglePageController, defaultSettings, \
-        ControllerSettings, StatsHandler, LogHandler
+from .controller import SinglePageController, \
+        ControllerSettings, StatsHandler, LogHandler, \
+        RecursiveController, DepthLimit, PrefixLimit
 from .devtools import Passthrough, Process
 from .warc import WarcHandler
 from .logger import Logger, JsonPrintConsumer, DatetimeConsumer, WarcHandlerConsumer
@@ -79,9 +80,6 @@ def single ():
 
     return ret
 
-import asyncio, os
-from .controller import RecursiveController, DepthLimit, PrefixLimit
-
 def parsePolicy (recursive, url):
     if recursive is None:
         return DepthLimit (0)
@@ -89,8 +87,7 @@ def parsePolicy (recursive, url):
         return DepthLimit (int (recursive))
     elif recursive == 'prefix':
         return PrefixLimit (url)
-    else:
-        raise ValueError ('Unsupported')
+    raise ValueError ('Unsupported')
 
 def recursive ():
     logger = Logger (consumer=[DatetimeConsumer (), JsonPrintConsumer ()])

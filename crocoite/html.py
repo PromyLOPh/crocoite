@@ -22,6 +22,10 @@
 HTML helper
 """
 
+from html5lib.treewalkers.base import TreeWalker
+from html5lib.filters.base import Filter
+from html5lib import constants
+
 # HTML void tags, see https://html.spec.whatwg.org/multipage/syntax.html#void-elements
 voidTags = {'area',
         'base',
@@ -102,10 +106,6 @@ eventAttributes = {'onabort',
         'ontoggle',
         'onvolumechange',
         'onwaiting'}
-
-from html5lib.treewalkers.base import TreeWalker
-from html5lib.filters.base import Filter
-from html5lib import constants
 
 class ChromeTreeWalker (TreeWalker):
     """

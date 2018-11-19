@@ -25,8 +25,6 @@ Chrome browser interactions.
 import asyncio
 from urllib.parse import urlsplit
 from base64 import b64decode
-from collections import deque
-from threading import Event
 from http.server import BaseHTTPRequestHandler
 
 from .logger import Level
@@ -40,7 +38,7 @@ class Item:
     __slots__ = ('chromeRequest', 'chromeResponse', 'chromeFinished',
             'isRedirect', 'failed', 'body', 'requestBody')
 
-    def __init__ (self, tab):
+    def __init__ (self):
         self.chromeRequest = {}
         self.chromeResponse = {}
         self.chromeFinished = {}
@@ -274,7 +272,7 @@ class SiteLoader:
             else:
                 logger.warning ('request exists', uuid='2c989142-ba00-4791-bb03-c2a14e91a56b')
 
-        item = Item (self.tab)
+        item = Item ()
         item.setRequest (kwargs)
         self.requests[reqId] = item
         logger.debug ('request', uuid='55c17564-1bd0-4499-8724-fa7aad65478f')

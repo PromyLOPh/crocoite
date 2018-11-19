@@ -22,7 +22,10 @@
 Communication with Google Chrome through its DevTools protocol.
 """
 
-import aiohttp, websockets, json, asyncio, logging
+import json, asyncio, logging, os
+from tempfile import mkdtemp
+import shutil
+import aiohttp, websockets
 
 logger = logging.getLogger (__name__)
 
@@ -228,8 +231,7 @@ class Tab:
             if '.' in name:
                 n, ext = name.split ('.', 1)
                 return getattrRecursive (getattr (obj, n), ext)
-            else:
-                return getattr (obj, name)
+            return getattr (obj, name)
 
         if self.crashed:
             raise Crashed ()
@@ -251,10 +253,6 @@ class Tab:
         ret = cls (kwargs['id'], ws)
         await ret.run ()
         return ret
-
-import os, time
-from tempfile import mkdtemp
-import shutil
 
 class Process:
     """ Start Google Chrome listening on a random port """
@@ -327,7 +325,7 @@ class Process:
         return False
 
 class Passthrough:
-    __slots__ = ('url')
+    __slots__ = ('url', )
 
     def __init__ (self, url):
         self.url = url

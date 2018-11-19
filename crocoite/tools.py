@@ -22,7 +22,7 @@
 Misc tools
 """
 
-import shutil, sys, re, os, logging, argparse
+import shutil, sys, os, logging, argparse
 from warcio.archiveiterator import ArchiveIterator
 from warcio.warcwriter import WARCWriter
 

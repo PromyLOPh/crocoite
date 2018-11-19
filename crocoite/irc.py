@@ -29,8 +29,8 @@ from enum import IntEnum, Enum
 from collections import defaultdict
 from abc import abstractmethod
 from functools import wraps
-from io import BytesIO
 import bottom
+import websockets
 
 ### helper functions ###
 def prettyTimeDelta (seconds):
@@ -333,11 +333,11 @@ class ArgparseBot (bottom.Client):
                 with self._quit:
                     await args.func (user=user, args=args, reply=reply)
 
-    async def onDisconnect (**kwargs):
+    async def onDisconnect (self, **kwargs):
         """ Auto-reconnect """
         self.logger.info ('disconnect', uuid='4c74b2c8-2403-4921-879d-2279ad85db72')
         if not self._quit.armed:
-            await asynio.sleep (10, loop=self.loop)
+            await asyncio.sleep (10, loop=self.loop)
             self.logger.info ('reconnect', uuid='c53555cb-e1a4-4b69-b1c9-3320269c19d7')
             await self.connect ()
 
@@ -491,8 +491,6 @@ class Chromebot (ArgparseBot):
                 uuid='865b3b3e-a54a-4a56-a545-f38a37bac295')
         if job.process and job.process.returncode is None:
             job.process.terminate ()
-
-import websockets
 
 class Dashboard:
     __slots__ = ('fd', 'clients', 'loop', 'log', 'maxLog', 'pingInterval', 'pingTimeout')

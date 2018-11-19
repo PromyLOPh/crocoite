@@ -24,15 +24,15 @@ Classes writing data to WARC files
 
 import json, threading
 from io import BytesIO
-from warcio.statusandheaders import StatusAndHeaders
 from urllib.parse import urlsplit
 from datetime import datetime
 
 from warcio.timeutils import datetime_to_iso_date
 from warcio.warcwriter import WARCWriter
+from warcio.statusandheaders import StatusAndHeaders
 
 from .util import packageUrl
-from .controller import defaultSettings, EventHandler, ControllerStart
+from .controller import EventHandler, ControllerStart
 from .behavior import Script, DomSnapshotEvent, ScreenshotEvent
 from .browser import Item
 

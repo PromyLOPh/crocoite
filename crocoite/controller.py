@@ -22,6 +22,17 @@
 Controller classes, handling actions required for archival
 """
 
+import time, platform
+import tempfile, asyncio, json, os
+from itertools import islice
+from datetime import datetime
+from urllib.parse import urlparse
+
+from . import behavior as cbehavior
+from .browser import SiteLoader, Item
+from .util import getFormattedViewportMetrics, getRequirements, removeFragment
+from .behavior import ExtractLinksEvent
+
 class ControllerSettings:
     __slots__ = ('idleTimeout', 'timeout')
 
@@ -47,7 +58,7 @@ class EventHandler:
         raise NotImplementedError ()
 
 class StatsHandler (EventHandler):
-    __slots__ = ('stats')
+    __slots__ = ('stats', )
 
     acceptException = True
 
@@ -63,13 +74,10 @@ class StatsHandler (EventHandler):
                 self.stats['finished'] += 1
                 self.stats['bytesRcv'] += item.encodedDataLength
 
-from .behavior import ExtractLinksEvent
-from itertools import islice
-
 class LogHandler (EventHandler):
     """ Handle items by logging information about them """
 
-    __slots__ = ('logger')
+    __slots__ = ('logger', )
 
     def __init__ (self, logger):
         self.logger = logger.bind (context=type (self).__name__)
@@ -86,15 +94,9 @@ class LogHandler (EventHandler):
                 self.logger.info ('extracted links', context=type (item).__name__,
                         uuid='8ee5e9c9-1130-4c5c-88ff-718508546e0c', links=limitlinks)
 
-import time, platform
-
-from . import behavior as cbehavior
-from .browser import SiteLoader, Item
-from .devtools import Process
-from .util import getFormattedViewportMetrics, getRequirements
 
 class ControllerStart:
-    __slots__ = ('payload')
+    __slots__ = ('payload', )
 
     def __init__ (self, payload):
         self.payload = payload
@@ -214,7 +216,7 @@ class DepthLimit (RecursionPolicy):
     depth==0 means no recursion, depth==1 is the page and outgoing links
     """
 
-    __slots__ = ('maxdepth')
+    __slots__ = ('maxdepth', )
 
     def __init__ (self, maxdepth=0):
         if maxdepth < 0 or maxdepth > 1:
@@ -240,19 +242,13 @@ class PrefixLimit (RecursionPolicy):
     accepted: http://example.com/foobar http://example.com/foo/bar
     """
 
-    __slots__ = ('prefix')
+    __slots__ = ('prefix', )
 
     def __init__ (self, prefix):
         self.prefix = prefix
 
     def __call__ (self, urls):
         return set (filter (lambda u: u.startswith (self.prefix), urls))
-
-import tempfile, asyncio, json, os
-from datetime import datetime
-from urllib.parse import urlparse
-from .behavior import ExtractLinksEvent
-from .util import removeFragment
 
 class RecursiveController:
     """

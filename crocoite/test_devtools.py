@@ -103,7 +103,7 @@ async def test_tab_crash (tab):
 
     # caling anything else now should fail as well
     with pytest.raises (Crashed):
-        version = await tab.Browser.getVersion ()
+        await tab.Browser.getVersion ()
 
 @pytest.mark.asyncio
 async def test_load (tab, server):
