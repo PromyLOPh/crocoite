@@ -27,6 +27,7 @@ import tempfile, asyncio, json, os
 from itertools import islice
 from datetime import datetime
 from urllib.parse import urlparse
+from operator import attrgetter
 
 from . import behavior as cbehavior
 from .browser import SiteLoader, Item
@@ -152,6 +153,12 @@ class SinglePageController:
                         'product': version['product'],
                         'useragent': version['userAgent'],
                         'viewport': await getFormattedViewportMetrics (l.tab),
+                        },
+                    'parameters': {
+                        'url': self.url,
+                        'idleTimeout': self.settings.idleTimeout,
+                        'timeout': self.settings.timeout,
+                        'behavior': list (map (attrgetter('name'), self.behavior)),
                         },
                     }
             self.processItem (ControllerStart (payload))
