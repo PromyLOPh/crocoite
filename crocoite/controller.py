@@ -172,19 +172,31 @@ class SinglePageController:
                     self.processItem (item)
             await l.start ()
 
-            # XXX: this does not detect idle changes properly
-            idleSince = None
+            # wait until the browser has a) been idle for at least
+            # settings.idleTimeout or b) settings.timeout is exceeded
+            timeoutProc = asyncio.ensure_future (asyncio.sleep (self.settings.timeout))
+            idleTimeout = None
             while True:
-                now = time.time()
-                runtime = now-start
-                if runtime >= self.settings.timeout or (idleSince and now-idleSince > self.settings.idleTimeout):
+                idleProc = asyncio.ensure_future (l.idle.wait ())
+                finished, pending = await asyncio.wait([idleProc, timeoutProc], return_when=asyncio.FIRST_COMPLETED, timeout=idleTimeout)
+                if not finished:
+                    # idle timeout
+                    idleProc.cancel ()
+                    timeoutProc.cancel ()
                     break
-                if len (l) == 0:
-                    if idleSince is None:
-                        idleSince = time.time ()
-                else:
-                    idleSince = None
-                await asyncio.sleep (1)
+                elif timeoutProc in finished:
+                    # global timeout
+                    idleProc.cancel ()
+                    timeoutProc.result ()
+                    break
+                elif idleProc in finished:
+                    # idle state change
+                    isIdle = idleProc.result ()
+                    if isIdle:
+                        # browser is idle, start the clock
+                        idleTimeout = self.settings.idleTimeout
+                    else:
+                        idleTimeout = None
             await l.tab.Page.stopLoading ()
 
             for b in enabledBehavior:
@@ -197,11 +209,10 @@ class SinglePageController:
                 async for item in b.onfinish ():
                     self.processItem (item)
 
-            # drain the queue XXX detect idle properly
-            i = 0
-            while len (l) and i < 20:
-                i += 1
-                await asyncio.sleep (1)
+            # wait until loads from behavior scripts are done
+            await asyncio.sleep (1)
+            if not l.idle.get ():
+                while not await l.idle.wait (): pass
 
             if handle.done ():
                 handle.result ()

@@ -24,7 +24,7 @@ from operator import itemgetter
 from aiohttp import web
 from http.server import BaseHTTPRequestHandler
 
-from .browser import Item, SiteLoader
+from .browser import Item, SiteLoader, VarChangeEvent
 from .logger import Logger, Consumer
 from .devtools import Crashed, Process
 
@@ -265,4 +265,27 @@ async def test_invalidurl (loader):
         async for it in l:
             assert it.failed
             break
+
+@pytest.mark.asyncio
+async def test_varchangeevent ():
+    e = VarChangeEvent (True)
+    assert e.get () == True
+
+    # no change at all
+    w = asyncio.ensure_future (e.wait ())
+    finished, pending = await asyncio.wait ([w], timeout=0.1)
+    assert not finished and pending
+
+    # no change
+    e.set (True)
+    finished, pending = await asyncio.wait ([w], timeout=0.1)
+    assert not finished and pending
+
+    # changed
+    e.set (False)
+    await asyncio.sleep (0.1) # XXX: is there a yield() ?
+    assert w.done ()
+    ret = w.result ()
+    assert ret == False
+    assert e.get () == ret
 

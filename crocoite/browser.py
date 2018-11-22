@@ -153,6 +153,29 @@ class Item:
         except TabException:
             self.body = None
 
+class VarChangeEvent:
+    """ Notify when variable is changed """
+
+    __slots__ = ('_value', 'event')
+
+    def __init__ (self, value):
+        self._value = value
+        self.event = asyncio.Event()
+
+    def set (self, value):
+        if value != self._value:
+            self._value = value
+            # unblock waiting threads
+            self.event.set ()
+            self.event.clear ()
+
+    def get (self):
+        return self._value
+
+    async def wait (self):
+        await self.event.wait ()
+        return self._value
+
 class SiteLoader:
     """
     Load site in Chrome and monitor network requests
@@ -160,7 +183,7 @@ class SiteLoader:
     XXX: track popup windows/new tabs and close them
     """
 
-    __slots__ = ('requests', 'browser', 'url', 'logger', 'tab', '_iterRunning')
+    __slots__ = ('requests', 'browser', 'url', 'logger', 'tab', '_iterRunning', 'idle', '_framesLoading')
     allowedSchemes = {'http', 'https'}
 
     def __init__ (self, browser, url, logger):
@@ -169,6 +192,9 @@ class SiteLoader:
         self.url = url
         self.logger = logger.bind (context=type (self).__name__, url=url)
         self._iterRunning = []
+
+        self.idle = VarChangeEvent (True)
+        self._framesLoading = set ()
 
     async def __aenter__ (self):
         tab = self.tab = await self.browser.__aenter__ ()
@@ -208,7 +234,8 @@ class SiteLoader:
                 tab.Network.loadingFailed: self._loadingFailed,
                 tab.Log.entryAdded: self._entryAdded,
                 tab.Page.javascriptDialogOpening: self._javascriptDialogOpening,
-                #tab.Inspector.targetCrashed: self._targetCrashed,
+                tab.Page.frameStartedLoading: self._frameStartedLoading,
+                tab.Page.frameStoppedLoading: self._frameStoppedLoading,
                 }
 
         # The implementation is a little advanced. Why? The goal here is to
@@ -351,4 +378,13 @@ class SiteLoader:
         else: # pragma: no cover
             self.logger.warning ('js dialog unknown',
                     uuid='3ef7292e-8595-4e89-b834-0cc6bc40ee38', **kwargs)
+
+    async def _frameStartedLoading (self, **kwargs):
+        self._framesLoading.add (kwargs['frameId'])
+        self.idle.set (False)
+
+    async def _frameStoppedLoading (self, **kwargs):
+        self._framesLoading.remove (kwargs['frameId'])
+        if not self._framesLoading:
+            self.idle.set (True)
 
