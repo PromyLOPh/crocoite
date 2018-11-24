@@ -1,23 +1,33 @@
 /*	Continuously scrolls the page
  */
-var __crocoite_stop__ = false;
 (function(){
-function scroll (event) {
-	if (__crocoite_stop__) {
-		return false;
-	} else {
-		window.scrollBy (0, window.innerHeight/2);
-		document.querySelectorAll ('*').forEach (
-			function (d) {
-				if (d.clientHeight < d.scrollHeight) {
-					d.scrollBy (0, d.clientHeight/2);
-				}
-			});
-		return true;
+let scrolled = new Map ();
+let interval = null;
+function stop() {
+	window.clearInterval (interval);
+	window.scrollTo (0, 0);
+	scrolled.forEach (function (value, key, map) {
+		key.scrollTop = value;
+	});
+}
+/* save initial scroll state */
+function save(obj) {
+	if (!scrolled.has (obj)) {
+		scrolled.set (obj, obj.scrollTop);
 	}
 }
-function onload (event) {
-    window.setInterval (scroll, 200);
+/* perform a single scroll step */
+function scroll (event) {
+	window.scrollBy (0, window.innerHeight/2);
+	document.querySelectorAll ('*').forEach (
+		function (d) {
+			if (d.scrollHeight-d.scrollTop > d.clientHeight) {
+				save (d);
+				d.scrollBy (0, d.clientHeight/2);
+			}
+		});
+	return true;
 }
-document.addEventListener("DOMContentLoaded", onload);
-}());
+interval = window.setInterval (scroll, 200);
+return {'stop': stop};
+}())

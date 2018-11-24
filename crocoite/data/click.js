@@ -165,5 +165,10 @@ function discover () {
 }
 
 /* XXX: can we use a mutation observer instead? */
-window.setInterval (discover, discoverInterval);
-}());
+let interval = window.setInterval (discover, discoverInterval);
+
+function stop() {
+	window.clearInterval (interval);
+}
+return {'stop': stop};
+}())

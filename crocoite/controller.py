@@ -167,10 +167,10 @@ class SinglePageController:
             enabledBehavior = list (filter (lambda x: self.url in x,
                     map (lambda x: x (l, logger), self.behavior)))
 
+            await l.start ()
             for b in enabledBehavior:
                 async for item in b.onload ():
                     self.processItem (item)
-            await l.start ()
 
             # wait until the browser has a) been idle for at least
             # settings.idleTimeout or b) settings.timeout is exceeded
@@ -197,11 +197,11 @@ class SinglePageController:
                         idleTimeout = self.settings.idleTimeout
                     else:
                         idleTimeout = None
-            await l.tab.Page.stopLoading ()
 
             for b in enabledBehavior:
                 async for item in b.onstop ():
                     self.processItem (item)
+            await l.tab.Page.stopLoading ()
 
             await asyncio.sleep (1)
 

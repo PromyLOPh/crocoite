@@ -79,7 +79,7 @@ class Behavior:
         return '<Behavior {}>'.format (self.name)
 
     async def onload (self):
-        """ Before loading the page """
+        """ After loading the page started """
         # this is a dirty hack to make this function an async generator
         return
         yield
@@ -107,23 +107,29 @@ class HostnameFilter:
 class JsOnload (Behavior):
     """ Execute JavaScript on page load """
 
-    __slots__ = ('script', 'scriptHandle')
+    __slots__ = ('script', 'context')
 
     scriptPath = None
 
     def __init__ (self, loader, logger):
         super ().__init__ (loader, logger)
         self.script = Script (self.scriptPath)
-        self.scriptHandle = None
+        self.context = None
 
     async def onload (self):
+        tab = self.loader.tab
         yield self.script
-        result = await self.loader.tab.Page.addScriptToEvaluateOnNewDocument (source=str (self.script))
-        self.scriptHandle = result['identifier']
+        result = await tab.Runtime.evaluate (expression=str (self.script))
+        result = result['result']
+        assert result['type'] == 'object'
+        assert result.get ('subtype') != 'error'
+        self.context = result['objectId']
 
     async def onstop (self):
-        if self.scriptHandle:
-            await self.loader.tab.Page.removeScriptToEvaluateOnNewDocument (identifier=self.scriptHandle)
+        tab = self.loader.tab
+        assert self.context is not None
+        await tab.Runtime.callFunctionOn (functionDeclaration='function(){return this.stop();}', objectId=self.context)
+        await tab.Runtime.releaseObject (objectId=self.context)
         return
         yield
 
@@ -134,20 +140,6 @@ class Scroll (JsOnload):
 
     name = 'scroll'
     scriptPath = 'scroll.js'
-
-    def __init__ (self, loader, logger):
-        super ().__init__ (loader, logger)
-        stopVarname = '__' + __package__ + '_stop__'
-        newStopVarname = randomString ()
-        self.script.data = self.script.data.replace (stopVarname, newStopVarname)
-        self.stopVarname = newStopVarname
-
-    async def onstop (self):
-        super ().onstop ()
-        # removing the script does not stop it if running
-        script = Script.fromStr ('{} = true; window.scrollTo (0, 0);'.format (self.stopVarname))
-        yield script
-        await self.loader.tab.Runtime.evaluate (expression=str (script), returnByValue=True)
 
 class EmulateScreenMetrics (Behavior):
     name = 'emulateScreenMetrics'
