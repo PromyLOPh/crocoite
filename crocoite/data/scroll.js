@@ -19,7 +19,7 @@ function save(obj) {
 /* perform a single scroll step */
 function scroll (event) {
 	window.scrollBy (0, window.innerHeight/2);
-	document.querySelectorAll ('*').forEach (
+	document.querySelectorAll ('html body *').forEach (
 		function (d) {
 			if (d.scrollHeight-d.scrollTop > d.clientHeight) {
 				save (d);
