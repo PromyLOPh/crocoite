@@ -350,8 +350,9 @@ class SiteLoader:
                 errorText=kwargs['errorText'],
                 blockedReason=kwargs.get ('blockedReason'))
         item = self.requests.pop (reqId, None)
-        item.failed = True
-        return item
+        if item is not None:
+            item.failed = True
+            return item
 
     async def _entryAdded (self, **kwargs):
         """ Log entry added """
