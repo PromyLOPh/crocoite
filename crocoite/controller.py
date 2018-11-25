@@ -178,7 +178,14 @@ class SinglePageController:
             idleTimeout = None
             while True:
                 idleProc = asyncio.ensure_future (l.idle.wait ())
-                finished, pending = await asyncio.wait([idleProc, timeoutProc], return_when=asyncio.FIRST_COMPLETED, timeout=idleTimeout)
+                try:
+                    finished, pending = await asyncio.wait([idleProc, timeoutProc],
+                            return_when=asyncio.FIRST_COMPLETED, timeout=idleTimeout)
+                except asyncio.CancelledError:
+                    idleProc.cancel ()
+                    timeoutProc.cancel ()
+                    break
+
                 if not finished:
                     # idle timeout
                     idleProc.cancel ()

@@ -69,7 +69,11 @@ def single ():
                 service=service, handler=handler, behavior=b, logger=logger)
         try:
             loop = asyncio.get_event_loop()
-            loop.run_until_complete(controller.run ())
+            run = asyncio.ensure_future (controller.run ())
+            stop = lambda signum: run.cancel ()
+            loop.add_signal_handler (signal.SIGINT, stop, signal.SIGINT)
+            loop.add_signal_handler (signal.SIGTERM, stop, signal.SIGTERM)
+            loop.run_until_complete(run)
             loop.close()
             ret = SingleExitStatus.Ok
         except Crashed:
