@@ -22,12 +22,14 @@ The following dependencies must be present to run crocoite:
 - warcio_
 - html5lib_
 - bottom_ (IRC client)
+- `Google Chrome`_
 
 .. _aiohttp: https://aiohttp.readthedocs.io/
 .. _websockets: https://websockets.readthedocs.io/
 .. _warcio: https://github.com/webrecorder/warcio
 .. _html5lib: https://github.com/html5lib/html5lib-python
 .. _bottom: https://github.com/numberoverzero/bottom
+.. _Google Chrome: https://www.google.com/chrome/
 
 It is recommended to prepare a virtualenv and let pip handle the dependency
 resolution for Python packages instead:
