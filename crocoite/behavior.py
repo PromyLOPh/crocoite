@@ -120,9 +120,10 @@ class JsOnload (Behavior):
         tab = self.loader.tab
         yield self.script
         result = await tab.Runtime.evaluate (expression=str (self.script))
+        exception = result.get ('exceptionDetails', None)
         result = result['result']
         assert result['type'] == 'object'
-        assert result.get ('subtype') != 'error'
+        assert result.get ('subtype') != 'error', exception
         self.context = result['objectId']
 
     async def onstop (self):
