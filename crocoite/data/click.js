@@ -81,6 +81,12 @@ const sites = Object.freeze ([
 			/* more posts */
 			{s: 'post-list a.post-list__load-more', flags: selectorFlag.multi},
 			],
+	}, {
+		hostname: /^(www\.)?github\.com$/i,
+		selector: [
+			/* show hidden issue items, see https://github.com/dominictarr/event-stream/issues/116 */
+			{s: 'div#discussion_bucket form.ajax-pagination-form button.ajax-pagination-btn', flags: selectorFlag.none},
+			],
 	}
 	]);
 
