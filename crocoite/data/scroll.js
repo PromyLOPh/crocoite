@@ -2,7 +2,7 @@
  */
 (function(){
 class Scroll {
-	constructor () {
+	constructor (options) {
 		this.scrolled = new Map ();
 		this.interval = window.setInterval (this.scroll.bind (this), 200);
 	}
@@ -34,5 +34,5 @@ class Scroll {
 	}
 }
 
-return new Scroll();
+return Scroll;
 }())

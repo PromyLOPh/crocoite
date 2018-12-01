@@ -16,6 +16,7 @@ setup(
         'pytz',
         'websockets',
         'aiohttp',
+        'PyYAML',
     ],
     entry_points={
     'console_scripts': [

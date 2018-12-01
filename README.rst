@@ -18,6 +18,7 @@ Quick start
 These dependencies must be present to run crocoite:
 
 - Python ≥3.6
+- PyYAML_
 - aiohttp_
 - websockets_
 - warcio_
@@ -25,6 +26,7 @@ These dependencies must be present to run crocoite:
 - bottom_ (IRC client)
 - `Google Chrome`_
 
+.. _PyYAML: https://pyyaml.org/wiki/PyYAML
 .. _aiohttp: https://aiohttp.readthedocs.io/
 .. _websockets: https://websockets.readthedocs.io/
 .. _warcio: https://github.com/webrecorder/warcio

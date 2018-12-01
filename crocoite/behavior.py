@@ -30,6 +30,7 @@ from collections import OrderedDict
 import pkg_resources
 
 from html5lib.serializer import HTMLSerializer
+import yaml
 
 from .util import randomString, getFormattedViewportMetrics, removeFragment
 from . import html
@@ -107,7 +108,7 @@ class HostnameFilter:
 class JsOnload (Behavior):
     """ Execute JavaScript on page load """
 
-    __slots__ = ('script', 'context')
+    __slots__ = ('script', 'context', 'options')
 
     scriptPath = None
 
@@ -115,15 +116,32 @@ class JsOnload (Behavior):
         super ().__init__ (loader, logger)
         self.script = Script (self.scriptPath)
         self.context = None
+        # options passed to constructor
+        self.options = {}
 
     async def onload (self):
         tab = self.loader.tab
         yield self.script
+
+        # This is slightly awkward, since we cannot compile the class into an
+        # objectId and then reference it. Therefore the script must return a
+        # class constructor, which is then called with a generic options
+        # parameter.
+        # XXX: is there a better way to do this?
         result = await tab.Runtime.evaluate (expression=str (self.script))
         exception = result.get ('exceptionDetails', None)
         result = result['result']
-        assert result['type'] == 'object'
+        assert result['type'] == 'function', result
         assert result.get ('subtype') != 'error', exception
+        constructor = result['objectId']
+
+        result = await tab.Runtime.callFunctionOn (
+                functionDeclaration='function(options){return new this(options);}',
+                objectId=constructor,
+                arguments=[{'value': self.options}])
+        result = result['result']
+        assert result['type'] == 'object', result
+        assert result.get ('subtype') != 'error', result
         self.context = result['objectId']
 
     async def onstop (self):
@@ -277,6 +295,11 @@ class Click (JsOnload):
 
     name = 'click'
     scriptPath = 'click.js'
+
+    def __init__ (self, loader, logger):
+        super ().__init__ (loader, logger)
+        with pkg_resources.resource_stream (__name__, os.path.join ('data', 'click.yaml')) as fd:
+            self.options['sites'] = list (yaml.load_all (fd))
 
 class ExtractLinksEvent:
     __slots__ = ('links', )

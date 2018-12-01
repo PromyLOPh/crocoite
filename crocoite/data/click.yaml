@@ -1,0 +1,70 @@
+# configuration for behavior.py:Click
+match: ^www\.facebook\.com$
+selector:
+  - description: show more comments
+    selector: a.UFIPagerLink[role=button]
+  - description: show nested comments
+    selector: a.UFICommentLink[role=button]
+  - description: initially show comments below a single post/video, i.e. /user/post/123
+    selector: form.commentable_item a[data-comment-prelude-ref=action_link_bling][rel=ignore]
+  - description: close the “register now” nag screen. for better screen shots
+    selector: a#expanding_cta_close_button[role=button]
+---
+match: ^twitter\.com$
+selector:
+  - description: expand threads
+    selector: a.ThreadedConversation-moreRepliesLink
+  - description: show hidden profiles
+    selector: button.ProfileWarningTimeline-button
+  - description: show hidden/sensitive media
+    selector: button.Tombstone-action.js-display-this-media
+---
+match: ^disqus\.com$
+selector:
+  - description: load more comments
+    selector: a.load-more__button
+    multi: True
+---
+match: ^(www|np)\.reddit\.com$
+selector:
+  - description: show more comments, reddit’s javascript ignores events if too frequent
+    selector: span.morecomments a
+    throttle: 500
+---
+match: ^www\.instagram\.com$
+selector:
+  - description: load more comments
+    selector: article div ul li button[type=button]
+    multi: True
+    urls: ["https://www.instagram.com/p/BqvAm_XnmdJ/"]
+---
+match: ^www\.youtube\.com$
+selector:
+  - description: expand comment thread
+    selector: ytd-comment-thread-renderer div.more-button
+---
+match: ^www\.patreon\.com$
+selector:
+  - description: load more content
+    selector: div[display=flex] div[display=block] button[color=gray][type=button]
+    multi: True
+  - description: load more comments
+    selector: div.stackable[display=block] > div  > div  > a[color=dark][target=_self]
+  - description: load more replies
+    selector: div > a[scale="0"][color=blue][size="1"]
+---
+match: ^(www\.)?gab\.ai$
+selector:
+  - description: post comments
+    selector: post-detail post-comment .post-comment__replies__count a
+  - description: more comments
+    selector: post-detail .post-comment-list__loading a
+  - description: more posts
+    selector: post-list a.post-list__load-more
+    multi: True
+---
+match: ^(www\.)?github\.com$
+selector:
+  - description: show hidden issue items
+    urls: ["https://github.com/dominictarr/event-stream/issues/116"]
+    selector: div#discussion_bucket form.ajax-pagination-form button.ajax-pagination-btn
