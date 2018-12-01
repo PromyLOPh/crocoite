@@ -26,11 +26,6 @@ import random, sys
 import hashlib, pkg_resources
 from urllib.parse import urlsplit, urlunsplit
 
-def randomString (length=None, chars='abcdefghijklmnopqrstuvwxyz'):
-    if length is None:
-        length = random.randint (16, 32)
-    return ''.join (map (lambda x: random.choice (chars), range (length)))
-
 def packageUrl (path):
     """
     Create URL for package data stored into WARC

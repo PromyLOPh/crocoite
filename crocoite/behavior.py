@@ -32,7 +32,7 @@ import pkg_resources
 from html5lib.serializer import HTMLSerializer
 import yaml
 
-from .util import randomString, getFormattedViewportMetrics, removeFragment
+from .util import getFormattedViewportMetrics, removeFragment
 from . import html
 from .html import StripAttributeFilter, StripTagFilter, ChromeTreeWalker
 from .devtools import Crashed
