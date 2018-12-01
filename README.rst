@@ -1,7 +1,8 @@
 crocoite
 ========
 
-Archive websites using `headless Google Chrome`_ and its DevTools protocol.
+Preservation for the modern web, powered by `headless Google
+Chrome`_.
 
 .. image:: https://travis-ci.org/PromyLOPh/crocoite.svg?branch=master
     :target: https://travis-ci.org/PromyLOPh/crocoite
@@ -14,7 +15,7 @@ Archive websites using `headless Google Chrome`_ and its DevTools protocol.
 Quick start
 -----------
 
-The following dependencies must be present to run crocoite:
+These dependencies must be present to run crocoite:
 
 - Python ≥3.6
 - aiohttp_
@@ -31,21 +32,25 @@ The following dependencies must be present to run crocoite:
 .. _bottom: https://github.com/numberoverzero/bottom
 .. _Google Chrome: https://www.google.com/chrome/
 
-It is recommended to prepare a virtualenv and let pip handle the dependency
-resolution for Python packages instead:
+The following commands clone the repository from GitHub_, set up a virtual
+environment and install crocoite:
+
+.. _GitHub: https://github.com/PromyLOPh/crocoite
 
 .. code:: bash
 
+    git clone https://github.com/PromyLOPh/crocoite.git
     cd crocoite
     virtualenv -p python3 sandbox
     source sandbox/bin/activate
     pip install .
 
-One-shot commandline interface and pywb_ playback:
+One-shot command line interface and pywb_ playback:
 
 .. code:: bash
 
-    crocoite-grab --output example.com.warc.gz http://example.com/
+    pip install pywb
+    crocoite-grab http://example.com/ example.com.warc.gz
     rm -rf collections && wb-manager init test && wb-manager add test example.com.warc.gz
     wayback &
     $BROWSER http://localhost:8080
