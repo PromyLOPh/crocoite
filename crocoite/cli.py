@@ -45,10 +45,11 @@ def single ():
     parser.add_argument('--browser', help='DevTools URL', metavar='URL')
     parser.add_argument('--timeout', default=1*60*60, type=int, help='Maximum time for archival', metavar='SEC')
     parser.add_argument('--idle-timeout', default=30, type=int, help='Maximum idle seconds (i.e. no requests)', dest='idleTimeout', metavar='SEC')
-    parser.add_argument('--behavior', help='Comma-separated list of enabled behavior scripts',
+    parser.add_argument('--behavior', help='Enable behavior script',
             dest='enabledBehaviorNames',
             default=list (behavior.availableMap.keys ()),
-            choices=list (behavior.availableMap.keys ()))
+            choices=list (behavior.availableMap.keys ()),
+            metavar='NAME', nargs='*')
     parser.add_argument('url', help='Website URL', metavar='URL')
     parser.add_argument('output', help='WARC filename', metavar='FILE')
 
