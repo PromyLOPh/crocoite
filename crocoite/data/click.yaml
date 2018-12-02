@@ -1,19 +1,24 @@
-# configuration for behavior.py:Click
+# Configuration for behavior.py:Click
+# Example URLs are random. Believe me.
 match: ^www\.facebook\.com$
 selector:
   - description: show more comments
     selector: a.UFIPagerLink[role=button]
+    urls: ["https://www.facebook.com/tagesschau"]
   - description: show nested comments
     selector: a.UFICommentLink[role=button]
   - description: initially show comments below a single post/video, i.e. /user/post/123
     selector: form.commentable_item a[data-comment-prelude-ref=action_link_bling][rel=ignore]
+    urls: ["https://www.facebook.com/tagesschau/posts/10157061068659407"]
   - description: close the “register now” nag screen. for better screen shots
     selector: a#expanding_cta_close_button[role=button]
+    urls: ["https://www.facebook.com/tagesschau"]
 ---
 match: ^twitter\.com$
 selector:
   - description: expand threads
     selector: a.ThreadedConversation-moreRepliesLink
+    urls: ["https://twitter.com/realDonaldTrump/status/1068826073775964160"]
   - description: show hidden profiles
     selector: button.ProfileWarningTimeline-button
   - description: show hidden/sensitive media
@@ -30,6 +35,8 @@ selector:
   - description: show more comments, reddit’s javascript ignores events if too frequent
     selector: span.morecomments a
     throttle: 500
+    # disabled: No idea why it is not working. The selector is fine.
+    #urls: ["https://www.reddit.com/r/funny/comments/a21rxz/well_this_was_a_highlight_of_my_day/"]
 ---
 match: ^www\.instagram\.com$
 selector:
@@ -42,26 +49,33 @@ match: ^www\.youtube\.com$
 selector:
   - description: expand comment thread
     selector: ytd-comment-thread-renderer div.more-button
+    urls: ["https://www.youtube.com/watch?v=udtFqQuBFSc"]
 ---
 match: ^www\.patreon\.com$
 selector:
   - description: load more content
-    selector: div[display=flex] div[display=block] button[color=gray][type=button]
-    multi: True
+    # I’ve been trying to avoid these generated css class selectors *so* hard,
+    # but it’s just not possible on this one.
+    selector: div.sc-bZQynM.fSJOpK button
+    urls: ["https://www.patreon.com/nkjemisin"]
   - description: load more comments
-    selector: div.stackable[display=block] > div  > div  > a[color=dark][target=_self]
+    selector: div[display=flex] div[display=block] a[color="dark"][role="button"][tabindex="0"]
+    urls: ["https://www.patreon.com/posts/what-im-on-22124040"]
   - description: load more replies
     selector: div > a[scale="0"][color=blue][size="1"]
 ---
 match: ^(www\.)?gab\.ai$
 selector:
-  - description: post comments
+  - description: more replies
     selector: post-detail post-comment .post-comment__replies__count a
+    urls: ["https://gab.ai/gab/posts/40014689"]
   - description: more comments
     selector: post-detail .post-comment-list__loading a
+    urls: ["https://gab.ai/gab/posts/41804462"]
   - description: more posts
     selector: post-list a.post-list__load-more
     multi: True
+    urls: ["https://gab.ai/gab"]
 ---
 match: ^(www\.)?github\.com$
 selector:

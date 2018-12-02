@@ -20,12 +20,14 @@
 
 import asyncio, os, yaml, re
 from urllib.parse import urlparse
+from functools import partial
 import pytest
 
 import pkg_resources
-from .browser import Item, SiteLoader, VarChangeEvent
-from .logger import Logger, Consumer
+from .logger import Logger
 from .devtools import Process
+from .behavior import Scroll, Behavior
+from .controller import SinglePageController
 
 with pkg_resources.resource_stream (__name__, os.path.join ('data', 'click.yaml')) as fd:
     sites = list (yaml.load_all (fd))
@@ -35,33 +37,51 @@ for o in sites:
         for u in s.get ('urls', []):
             clickParam.append ((u, s['selector']))
 
-@pytest.mark.parametrize("url,selector", clickParam)
-@pytest.mark.asyncio
-async def test_click_selectors (url, selector):
+class ClickTester (Behavior):
     """
-    Make sure the CSS selector exists on an example url
+    Test adapter checking a given selector exists after loading the page
     """
-    logger = Logger ()
-    async with Process () as browser, SiteLoader (browser, url, logger) as l:
-        tab = l.tab
-        await l.start ()
-        # XXX: not sure why this is needed, must be a bug.
-        await asyncio.sleep (0.5)
-        if not l.idle.get ():
-            await l.idle.wait ()
+
+    __slots__ = ('selector', )
+
+    name = 'testclick'
+
+    def __init__ (self, loader, logger, selector):
+        super ().__init__ (loader, logger)
+        self.selector = selector
+
+    async def onfinish (self):
+        tab = self.loader.tab
         results = await tab.DOM.getDocument ()
         rootNode = results['root']['nodeId']
-        results = await tab.DOM.querySelectorAll (nodeId=rootNode, selector=selector)
-        assert results['nodeIds'], selector
+        results = await tab.DOM.querySelectorAll (nodeId=rootNode, selector=self.selector)
+        assert results['nodeIds'], self.selector
 
         # XXX: this is not true for every element we click. Github uses <button
-        # type=submit> and <form> without an event listener
+        # type=submit> and <form> without an event listener on the <button>
 #        # verify that an event listener exists
 #        for nid in results['nodeIds']:
 #            obj = (await tab.DOM.resolveNode (nodeId=nid))['object']
 #            assert obj['type'] == 'object'
 #            listeners = (await tab.DOMDebugger.getEventListeners (objectId=obj['objectId']))['listeners']
 #            assert any (map (lambda x: x['type'] == 'click', listeners)), listeners
+
+        return
+        yield
+
+@pytest.mark.parametrize("url,selector", clickParam)
+@pytest.mark.asyncio
+@pytest.mark.xfail(reason='depends on network access')
+async def test_click_selectors (url, selector):
+    """
+    Make sure the CSS selector exists on an example url
+    """
+    logger = Logger ()
+    # Some selectors are loaded dynamically and require scrolling
+    controller = SinglePageController (url=url, logger=logger,
+            service=Process (),
+            behavior=[Scroll, partial(ClickTester, selector=selector)])
+    await controller.run ()
 
 matchParam = []
 for o in sites:
