@@ -104,19 +104,18 @@ class ControllerStart:
 
 class SinglePageController:
     """
-    Archive a single page url to file output.
+    Archive a single page url.
 
     Dispatches between producer (site loader and behavior scripts) and consumer
     (stats, warc writer).
     """
 
-    __slots__ = ('url', 'output', 'service', 'behavior', 'settings', 'logger', 'handler')
+    __slots__ = ('url', 'service', 'behavior', 'settings', 'logger', 'handler')
 
-    def __init__ (self, url, output, logger, \
+    def __init__ (self, url, logger, \
             service, behavior=cbehavior.available, \
             settings=defaultSettings, handler=[]):
         self.url = url
-        self.output = output
         self.service = service
         self.behavior = behavior
         self.settings = settings

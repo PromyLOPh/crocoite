@@ -66,7 +66,7 @@ def single ():
         logger.connect (WarcHandlerConsumer (warcHandler))
         handler = [StatsHandler (), LogHandler (logger), warcHandler]
         b = list (map (lambda x: behavior.availableMap[x], args.enabledBehaviorNames))
-        controller = SinglePageController (args.url, fd, settings=settings,
+        controller = SinglePageController (url=args.url, settings=settings,
                 service=service, handler=handler, behavior=b, logger=logger)
         try:
             loop = asyncio.get_event_loop()
