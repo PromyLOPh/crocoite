@@ -177,8 +177,6 @@ class EmulateScreenMetrics (Behavior):
                 {'width': 320, 'height': 480, 'deviceScaleFactor': 163/cssPpi, 'mobile': True},
                 # 6th gen iPhone (portrait mode)
                 {'width': 750, 'height': 1334, 'deviceScaleFactor': 326/cssPpi, 'mobile': True},
-                # and reset
-                {'width': 1920, 'height': 1080, 'deviceScaleFactor': 1, 'mobile': False},
                 ]
         l = self.loader
         tab = l.tab
@@ -187,8 +185,7 @@ class EmulateScreenMetrics (Behavior):
             # give the browser time to re-eval page and start requests
             # XXX: should wait until loader is not busy any more
             await asyncio.sleep (1)
-        # XXX: this seems to be broken, it does not clear the override
-        #tab.Emulation.clearDeviceMetricsOverride ()
+        await tab.Emulation.clearDeviceMetricsOverride ()
         return
         yield
 
