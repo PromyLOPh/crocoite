@@ -1,4 +1,4 @@
-# Copyright (c) 2017 crocoite contributors
+# Copyright (c) 2017–2018 crocoite contributors
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -19,7 +19,19 @@
 # THE SOFTWARE.
 
 """
-Generic and per-site behavior scripts
+Behavior scripts (i.e. subclasses of Behavior) are a powerful method to
+manipulate websites loaded into Chrome. They are executed by the controller
+after the page started loading (onload), after it has been idle for a while
+(onstop) and after loading was stopped (onfinish).
+
+The script’s excercise their power either through DevTools API calls or by
+injecting JavaScript into the page context. Thus they can manipulate both, the
+browser itself (DevTools; modify resolution, get DOM snapshot) as well as the
+page (JavaScript; trigger JavaScript events, call web API’s).
+
+They also emit (yield) data processable by any consumer registered to the
+controller. This allows storing captured screenshots inside WARC files, for
+instance.
 """
 
 import asyncio
