@@ -155,8 +155,6 @@ class JsOnload (Behavior):
 ### Generic scripts ###
 
 class Scroll (JsOnload):
-    __slots__ = ('stopVarname', )
-
     name = 'scroll'
     scriptPath = 'scroll.js'
 
