@@ -203,9 +203,6 @@ class DomSnapshot (Behavior):
 
     We could use DOMSnapshot.getSnapshot here, but the API is not stable
     yet. Also computed styles are not really necessary here.
-
-    XXX: Currently writes a response, when it should use “resource”. pywb
-    can’t handle that though.
     """
 
     __slots__ = ('script', )
