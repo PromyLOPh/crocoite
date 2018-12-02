@@ -137,6 +137,10 @@ class SinglePageController:
 
             start = time.time ()
 
+            # not all behavior scripts are allowed for every URL, filter them
+            enabledBehavior = list (filter (lambda x: self.url in x,
+                    map (lambda x: x (l, logger), self.behavior)))
+
             version = await l.tab.Browser.getVersion ()
             payload = {
                     'software': {
@@ -157,14 +161,10 @@ class SinglePageController:
                         'url': self.url,
                         'idleTimeout': self.settings.idleTimeout,
                         'timeout': self.settings.timeout,
-                        'behavior': list (map (attrgetter('name'), self.behavior)),
+                        'behavior': list (map (attrgetter('name'), enabledBehavior)),
                         },
                     }
             self.processItem (ControllerStart (payload))
-
-            # not all behavior scripts are allowed for every URL, filter them
-            enabledBehavior = list (filter (lambda x: self.url in x,
-                    map (lambda x: x (l, logger), self.behavior)))
 
             await l.start ()
             for b in enabledBehavior:
