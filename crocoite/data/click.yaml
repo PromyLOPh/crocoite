@@ -82,3 +82,10 @@ selector:
   - description: show hidden issue items
     urls: ["https://github.com/dominictarr/event-stream/issues/116"]
     selector: div#discussion_bucket form.ajax-pagination-form button.ajax-pagination-btn
+---
+match: ^www\.gamasutra\.com$
+selector:
+    - description: Load more comments
+      urls: ["http://www.gamasutra.com/blogs/RaminShokrizade/20130626/194933/The_Top_F2P_Monetization_Tricks.php"]
+      selector: div#dynamiccomments div.viewTopCmts a
+
