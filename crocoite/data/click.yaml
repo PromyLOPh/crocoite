@@ -54,9 +54,8 @@ selector:
 match: ^www\.patreon\.com$
 selector:
   - description: load more content
-    # I’ve been trying to avoid these generated css class selectors *so* hard,
-    # but it’s just not possible on this one.
-    selector: div.sc-bZQynM.fSJOpK button
+    # this selector is so long, because there are no stable css classes
+    selector: div.col-xs-12 > div > div > div > div[display="flex"] > div > button[tabindex="0"][color="tertiary"][type="button"]
     urls: ["https://www.patreon.com/nkjemisin"]
   - description: load more comments
     selector: div[display=flex] div[display=block] a[color="dark"][role="button"][tabindex="0"]
