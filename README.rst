@@ -168,6 +168,33 @@ s <uuid>
 r <uuid>
     Revoke or abort running job with <uuid>
 
+Browser configuration
+^^^^^^^^^^^^^^^^^^^^^
+
+Generally crocoite provides reasonable defaults for Google Chrome via its
+`devtools module`_. When debugging this software it might be necessary to open
+a non-headless instance of the browser by running
+
+.. code:: bash
+
+   google-chrome-stable --remote-debugging-port=9222 --auto-open-devtools-for-tabs
+
+and then passing the option ``--browser=http://localhost:9222`` to
+``crocoite-grab``. This allows human intervention through the browser’s builtin
+console.
+
+Another issue that might arise is related to fonts. Headless servers usually
+don’t have them installed by default and thus rendered screenshots may contain
+replacement characters (□) instead of the actual text. This affects mostly
+non-latin character sets.  It is therefore recommended to install at least
+Micrsoft’s Corefonts_ as well as DejaVu_, Liberation_ or a similar font family
+covering a wide range of character sets.
+
+.. _devtools module: crocoite/devtools.py
+.. _Corefonts: http://corefonts.sourceforge.net/
+.. _DejaVu: https://dejavu-fonts.github.io/
+.. _Liberation: https://pagure.io/liberation-fonts
+
 Related projects
 ----------------
 
