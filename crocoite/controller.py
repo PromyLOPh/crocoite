@@ -22,7 +22,7 @@
 Controller classes, handling actions required for archival
 """
 
-import time, platform
+import time
 import tempfile, asyncio, json, os
 from itertools import islice
 from datetime import datetime
@@ -31,7 +31,7 @@ from operator import attrgetter
 
 from . import behavior as cbehavior
 from .browser import SiteLoader, Item
-from .util import getFormattedViewportMetrics, getRequirements, removeFragment
+from .util import getFormattedViewportMetrics, getSoftwareInfo, removeFragment
 from .behavior import ExtractLinksEvent
 
 class ControllerSettings:
@@ -143,20 +143,13 @@ class SinglePageController:
 
             version = await l.tab.Browser.getVersion ()
             payload = {
-                    'software': {
-                        'platform': platform.platform (),
-                        'python': {
-                            'implementation': platform.python_implementation(),
-                            'version': platform.python_version (),
-                            'build': platform.python_build ()
-                            },
-                        'self': getRequirements (__package__)
-                        },
+                    'software': getSoftwareInfo (),
                     'browser': {
                         'product': version['product'],
                         'useragent': version['userAgent'],
                         'viewport': await getFormattedViewportMetrics (l.tab),
                         },
+                    'tool': 'crocoite-single', # not the name of the cli utility
                     'parameters': {
                         'url': self.url,
                         'idleTimeout': self.settings.idleTimeout,

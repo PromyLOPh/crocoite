@@ -22,15 +22,37 @@
 Misc tools
 """
 
-import shutil, sys, os, logging, argparse
+import shutil, sys, os, logging, argparse, json
+from io import BytesIO
 from warcio.archiveiterator import ArchiveIterator
 from warcio.warcwriter import WARCWriter
+from .util import packageUrl, getSoftwareInfo
 
 def mergeWarc (files, output):
     unique = 0
     revisit = 0
     payloadMap = {}
     writer = WARCWriter (output, gzip=True)
+
+    # Add an additional warcinfo record, describing the transformations. This
+    # is not ideal, since
+    #   “A ‘warcinfo’ record describes the records that
+    #   follow it […] until next ‘warcinfo’”
+    #   -- https://iipc.github.io/warc-specifications/specifications/warc-format/warc-1.1/#warcinfo
+    # A warcinfo record is expected at the beginning of every file. But it
+    # might have written by a different software, so we don’t want to
+    # strip/replace that information, but supplement it.
+    warcinfo = {
+            'software': getSoftwareInfo (),
+            'tool': 'crocoite-merge', # not the name of the cli tool
+            'parameters': {'inputs': files},
+            }
+    payload = BytesIO (json.dumps (warcinfo, indent=2).encode ('utf-8'))
+    record = writer.create_warc_record (packageUrl ('warcinfo'), 'warcinfo',
+            payload=payload,
+            warc_headers_dict={'Content-Type': 'text/plain; encoding=utf-8'})
+    writer.write_record (record)
+
     for l in files:
         with open (l, 'rb') as fd:
             for record in ArchiveIterator (fd):

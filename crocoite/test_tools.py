@@ -27,6 +27,7 @@ from warcio.warcwriter import WARCWriter
 from warcio.statusandheaders import StatusAndHeaders
 
 from .tools import mergeWarc
+from .util import packageUrl
 
 @pytest.fixture
 def writer():
@@ -45,12 +46,21 @@ def recordsEqual(golden, underTest):
         assert aheader == bheader
         assert a.http_headers == b.http_headers
 
+def makeGolden(writer, records):
+    # additional warcinfo is written. Content does not matter.
+    record = writer.create_warc_record (packageUrl ('warcinfo'), 'warcinfo',
+            payload=b'',
+            warc_headers_dict={'Content-Type': 'text/plain; encoding=utf-8'})
+    records.insert (0, record)
+    return records
+
 def test_unmodified(writer):
     """
     Single request/response pair, no revisits
     """
 
     records = []
+
     httpHeaders = StatusAndHeaders('GET / HTTP/1.1', {}, is_http_request=True)
     warcHeaders = {}
     record = writer.create_warc_record ('http://example.com/', 'request', payload=BytesIO(b'foobar'),
@@ -69,7 +79,7 @@ def test_unmodified(writer):
     mergeWarc ([writer.out.name], output)
 
     output.seek(0)
-    recordsEqual (records, ArchiveIterator (output))
+    recordsEqual (makeGolden (writer, records), ArchiveIterator (output))
 
 def test_different_payload(writer):
     """
@@ -97,7 +107,7 @@ def test_different_payload(writer):
     mergeWarc ([writer.out.name], output)
 
     output.seek(0)
-    recordsEqual (records, ArchiveIterator (output))
+    recordsEqual (makeGolden (writer, records), ArchiveIterator (output))
 
 def makeRevisit(writer, ref, dup):
     """ Make revisit record for reference """
@@ -141,7 +151,7 @@ def test_resp_revisit_same_url(writer):
     mergeWarc ([writer.out.name], output)
 
     output.seek(0)
-    recordsEqual (records, ArchiveIterator (output))
+    recordsEqual (makeGolden (writer, records), ArchiveIterator (output))
 
 def test_resp_revisit_other_url(writer):
     """
@@ -183,5 +193,5 @@ def test_resp_revisit_other_url(writer):
     mergeWarc ([writer.out.name], output)
 
     output.seek(0)
-    recordsEqual (records, ArchiveIterator (output))
+    recordsEqual (makeGolden (writer, records), ArchiveIterator (output))
 

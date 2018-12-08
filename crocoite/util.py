@@ -22,7 +22,7 @@
 Random utility functions
 """
 
-import random, sys
+import random, sys, platform
 import hashlib, pkg_resources
 from urllib.parse import urlsplit, urlunsplit
 
@@ -42,6 +42,18 @@ def removeFragment (u):
     """ Remove fragment from url (i.e. #hashvalue) """
     s = urlsplit (u)
     return urlunsplit ((s.scheme, s.netloc, s.path, s.query, ''))
+
+def getSoftwareInfo ():
+    """ Get software info for inclusion into warcinfo """
+    return {
+            'platform': platform.platform (),
+            'python': {
+                'implementation': platform.python_implementation(),
+                'version': platform.python_version (),
+                'build': platform.python_build ()
+                },
+            'self': getRequirements (__package__)
+        }
 
 def getRequirements (dist):
     """ Get dependencies of a package.
