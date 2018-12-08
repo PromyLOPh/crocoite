@@ -34,9 +34,8 @@ controller. This allows storing captured screenshots inside WARC files, for
 instance.
 """
 
-import asyncio
+import asyncio, json, os.path
 from urllib.parse import urlsplit
-import os.path
 from base64 import b64decode
 from collections import OrderedDict
 import pkg_resources
@@ -66,9 +65,10 @@ class Script:
         return self.data
 
     @classmethod
-    def fromStr (cls, data):
+    def fromStr (cls, data, path=None):
         s = Script ()
         s.data = data
+        s.path = path
         return s
 
 class Behavior:
@@ -147,6 +147,8 @@ class JsOnload (Behavior):
         assert result.get ('subtype') != 'error', exception
         constructor = result['objectId']
 
+        if self.options:
+            yield Script.fromStr (json.dumps (self.options, indent=2), '{}/options'.format (self.script.path))
         result = await tab.Runtime.callFunctionOn (
                 functionDeclaration='function(options){return new this(options);}',
                 objectId=constructor,
