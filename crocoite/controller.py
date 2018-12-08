@@ -171,7 +171,7 @@ class SinglePageController:
             while True:
                 idleProc = asyncio.ensure_future (l.idle.wait ())
                 try:
-                    finished, pending = await asyncio.wait([idleProc, timeoutProc],
+                    finished, pending = await asyncio.wait([idleProc, timeoutProc, handle],
                             return_when=asyncio.FIRST_COMPLETED, timeout=idleTimeout)
                 except asyncio.CancelledError:
                     idleProc.cancel ()
@@ -183,6 +183,12 @@ class SinglePageController:
                     idleProc.cancel ()
                     timeoutProc.cancel ()
                     break
+                elif handle in finished:
+                    # something went wrong while processing the data
+                    idleProc.cancel ()
+                    timeoutProc.cancel ()
+                    handle.result ()
+                    assert False # previous line should always raise Exception
                 elif timeoutProc in finished:
                     # global timeout
                     idleProc.cancel ()
