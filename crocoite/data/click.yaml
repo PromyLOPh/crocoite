@@ -21,8 +21,10 @@ selector:
     urls: ["https://twitter.com/realDonaldTrump/status/1068826073775964160"]
   - description: show hidden profiles
     selector: button.ProfileWarningTimeline-button
-  - description: show hidden/sensitive media
+    urls: ["https://twitter.com/CookieCyboid"]
+  - description: show hidden/sensitive media. For screen-/snapshots.
     selector: button.Tombstone-action.js-display-this-media
+    urls: ["https://twitter.com/CookieCyboid/status/1070807283305713665"]
 ---
 match: ^disqus\.com$
 selector:
