@@ -65,18 +65,20 @@ selector:
   - description: load more replies
     selector: div > a[scale="0"][color=blue][size="1"]
 ---
-match: ^(www\.)?gab\.ai$
+# gab uses multiple domains without any preference for either (i.e. redirect),
+# so we need to support them all
+match: ^(www\.)?gab\.(ai|com)$
 selector:
   - description: more replies
     selector: post-detail post-comment .post-comment__replies__count a
-    urls: ["https://gab.ai/gab/posts/40014689"]
+    urls: ["https://gab.ai/gab/posts/40014689", "https://www.gab.com/gab/posts/40014689"]
   - description: more comments
     selector: post-detail .post-comment-list__loading a
-    urls: ["https://gab.ai/gab/posts/41804462"]
+    urls: ["https://gab.ai/gab/posts/41804462", "https://www.gab.com/gab/posts/41804462"]
   - description: more posts
     selector: post-list a.post-list__load-more
     multi: True
-    urls: ["https://gab.ai/gab"]
+    urls: ["https://gab.ai/gab", "https://www.gab.com/gab"]
 ---
 match: ^(www\.)?github\.com$
 selector:
