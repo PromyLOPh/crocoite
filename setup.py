@@ -26,6 +26,7 @@ setup(
             'crocoite-irc-dashboard = crocoite.cli:dashboard',
             'crocoite-merge-warc = crocoite.tools:mergeWarcCli',
             'crocoite-extract-screenshot = crocoite.tools:extractScreenshot',
+            'crocoite-errata = crocoite.tools:errata',
             ],
     },
     package_data={

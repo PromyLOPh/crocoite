@@ -25,8 +25,9 @@ import pytest
 from warcio.archiveiterator import ArchiveIterator
 from warcio.warcwriter import WARCWriter
 from warcio.statusandheaders import StatusAndHeaders
+from pkg_resources import parse_version
 
-from .tools import mergeWarc
+from .tools import mergeWarc, Errata, FixableErrata
 from .util import packageUrl
 
 @pytest.fixture
@@ -194,4 +195,29 @@ def test_resp_revisit_other_url(writer):
 
     output.seek(0)
     recordsEqual (makeGolden (writer, records), ArchiveIterator (output))
+
+def test_errata_contains():
+    """ Test version matching """
+    e = Errata('some-uuid', 'description', ['a<1.0'])
+    assert {'a': parse_version('0.1')} in e
+    assert {'a': parse_version('1.0')} not in e
+    assert {'b': parse_version('1.0')} not in e
+
+    e = Errata('some-uuid', 'description', ['a<1.0,>0.1'])
+    assert {'a': parse_version('0.1')} not in e
+    assert {'a': parse_version('0.2')} in e
+    assert {'a': parse_version('1.0')} not in e
+
+    # a AND b
+    e = Errata('some-uuid', 'description', ['a<1.0', 'b>1.0'])
+    assert {'a': parse_version('0.1')} not in e
+    assert {'b': parse_version('1.1')} not in e
+    assert {'a': parse_version('0.1'), 'b': parse_version('1.1')} in e
+
+def test_errata_fixable ():
+    e = Errata('some-uuid', 'description', ['a<1.0', 'b>1.0'])
+    assert not e.fixable
+
+    e = FixableErrata('some-uuid', 'description', ['a<1.0', 'b>1.0'])
+    assert e.fixable
 
