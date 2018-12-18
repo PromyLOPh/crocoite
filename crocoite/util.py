@@ -22,9 +22,22 @@
 Random utility functions
 """
 
-import random, sys, platform
+import random, sys, platform, os, json
+from datetime import datetime
 import hashlib, pkg_resources
-from urllib.parse import urlsplit, urlunsplit
+
+class StrJsonEncoder (json.JSONEncoder):
+    """ JSON encoder that turns unknown classes into a string and thus never
+    fails """
+    def default (self, obj):
+        if isinstance (obj, datetime):
+            return obj.isoformat ()
+
+        # make sure serialization always succeeds
+        try:
+            return json.JSONEncoder.default(self, obj)
+        except TypeError:
+            return str (obj)
 
 def packageUrl (path):
     """
@@ -37,11 +50,6 @@ async def getFormattedViewportMetrics (tab):
     # XXX: I’m not entirely sure which one we should use here
     return '{}x{}'.format (layoutMetrics['layoutViewport']['clientWidth'],
                 layoutMetrics['layoutViewport']['clientHeight'])
-
-def removeFragment (u):
-    """ Remove fragment from url (i.e. #hashvalue) """
-    s = urlsplit (u)
-    return urlunsplit ((s.scheme, s.netloc, s.path, s.query, ''))
 
 def getSoftwareInfo ():
     """ Get software info for inclusion into warcinfo """

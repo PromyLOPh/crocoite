@@ -34,6 +34,8 @@ from enum import IntEnum
 
 from pytz import utc
 
+from .util import StrJsonEncoder
+
 class Level(IntEnum):
     DEBUG = 0
     INFO = 1
@@ -102,24 +104,13 @@ class PrintConsumer (Consumer):
         sys.stderr.flush ()
         return kwargs
 
-class JsonEncoder (json.JSONEncoder):
-    def default (self, obj):
-        if isinstance (obj, datetime):
-            return obj.isoformat ()
-
-        # make sure serialization always succeeds
-        try:
-            return json.JSONEncoder.default(self, obj)
-        except TypeError:
-            return str (obj)
-
 class JsonPrintConsumer (Consumer):
     def __init__ (self, minLevel=Level.INFO):
         self.minLevel = minLevel
 
     def __call__ (self, **kwargs):
         if kwargs['level'] >= self.minLevel:
-            json.dump (kwargs, sys.stdout, cls=JsonEncoder)
+            json.dump (kwargs, sys.stdout, cls=StrJsonEncoder)
             sys.stdout.write ('\n')
             sys.stdout.flush ()
         return kwargs
@@ -136,6 +127,6 @@ class WarcHandlerConsumer (Consumer):
 
     def __call__ (self, **kwargs):
         if kwargs['level'] >= self.minLevel:
-            self.warc._writeLog (json.dumps (kwargs, cls=JsonEncoder))
+            self.warc._writeLog (json.dumps (kwargs, cls=StrJsonEncoder))
         return kwargs
 

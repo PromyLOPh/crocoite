@@ -26,12 +26,11 @@ import time
 import tempfile, asyncio, json, os
 from itertools import islice
 from datetime import datetime
-from urllib.parse import urlparse
 from operator import attrgetter
 
 from . import behavior as cbehavior
 from .browser import SiteLoader, Item
-from .util import getFormattedViewportMetrics, getSoftwareInfo, removeFragment
+from .util import getFormattedViewportMetrics, getSoftwareInfo
 from .behavior import ExtractLinksEvent
 
 class ControllerSettings:
@@ -316,12 +315,12 @@ class RecursiveController:
             return e.format (url=url, dest=dest.name)
 
         def formatPrefix (p):
-            return p.format (host=urlparse (url).hostname, date=datetime.utcnow ().isoformat ())
+            return p.format (host=url.host, date=datetime.utcnow ().isoformat ())
 
         def logStats ():
             logger.info ('stats', uuid='24d92d16-770e-4088-b769-4020e127a7ff', **self.stats)
 
-        if urlparse (url).scheme not in self.SCHEME_WHITELIST:
+        if url.scheme not in self.SCHEME_WHITELIST:
             self.stats['ignored'] += 1
             logStats ()
             self.logger.warning ('scheme not whitelisted', url=url,
@@ -344,7 +343,7 @@ class RecursiveController:
             data = json.loads (data)
             uuid = data.get ('uuid')
             if uuid == '8ee5e9c9-1130-4c5c-88ff-718508546e0c':
-                links = set (self.policy (map (removeFragment, data.get ('links', []))))
+                links = set (self.policy (map (lambda x: x.with_fragment(None), data.get ('links', []))))
                 links.difference_update (self.have)
                 self.pending.update (links)
             elif uuid == '24d92d16-770e-4088-b769-4020e127a7ff':

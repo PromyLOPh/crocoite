@@ -24,6 +24,7 @@ Command line interface
 
 import argparse, sys, signal, asyncio, os
 from enum import IntEnum
+from yarl import URL
 
 from . import behavior
 from .controller import SinglePageController, \
@@ -50,7 +51,7 @@ def single ():
             default=list (behavior.availableMap.keys ()),
             choices=list (behavior.availableMap.keys ()),
             metavar='NAME', nargs='*')
-    parser.add_argument('url', help='Website URL', metavar='URL')
+    parser.add_argument('url', help='Website URL', type=URL, metavar='URL')
     parser.add_argument('output', help='WARC filename', metavar='FILE')
 
     args = parser.parse_args ()
@@ -102,7 +103,7 @@ def recursive ():
     parser.add_argument('--tempdir', help='Directory for temporary files', metavar='DIR')
     parser.add_argument('--prefix', help='Output filename prefix, supports templates {host} and {date}', metavar='FILENAME', default='{host}-{date}-')
     parser.add_argument('--concurrency', '-j', help='Run at most N jobs', metavar='N', default=1, type=int)
-    parser.add_argument('url', help='Seed URL', metavar='URL')
+    parser.add_argument('url', help='Seed URL', type=URL, metavar='URL')
     parser.add_argument('output', help='Output directory', metavar='DIR')
     parser.add_argument('command', help='Fetch command, supports templates {url} and {dest}', metavar='CMD', nargs='*', default=['crocoite-grab', '{url}', '{dest}'])
 

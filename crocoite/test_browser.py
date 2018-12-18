@@ -92,7 +92,7 @@ testItems = [
     TItem ('html/fetchPost/binary/large', 200, {'Content-Type': 'application/octet-stream'}, b'\x00', requestBody=(100*1024)*b'\x00'),
     TItem ('html/fetchPost/form/large', 200, {'Content-Type': 'application/octet-stream'}, b'\x00', requestBody=b'data=' + (100*1024)*b'%21'),
     ]
-testItemMap = dict ([(item.parsedUrl.path, item) for item in testItems])
+testItemMap = dict ([(item.url.path, item) for item in testItems])
 
 def itemToResponse (item):
     async def f (req):
@@ -108,7 +108,7 @@ async def server ():
     logging.basicConfig(level=logging.DEBUG)
     app = web.Application(debug=True)
     for item in testItems:
-        app.router.add_route ('*', item.parsedUrl.path, itemToResponse (item))
+        app.router.add_route ('*', item.url.path, itemToResponse (item))
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, 'localhost', 8080)
@@ -137,10 +137,10 @@ async def loader (server, logger):
         yield f
 
 async def itemsLoaded (l, items):
-    items = dict ([(i.parsedUrl.path, i) for i in items])
+    items = dict ([(i.url.path, i) for i in items])
     async for item in l:
         assert item.chromeResponse is not None
-        golden = items.pop (item.parsedUrl.path)
+        golden = items.pop (item.url.path)
         if not golden:
             assert False, 'url {} not supposed to be fetched'.format (item.url)
         assert item.failed == golden.failed
@@ -167,7 +167,7 @@ async def itemsLoaded (l, items):
             break
 
 async def literalItem (lf, item, deps=[]):
-    async with lf (item.parsedUrl.path) as l:
+    async with lf (item.url.path) as l:
         await l.start ()
         await asyncio.wait_for (itemsLoaded (l, [item] + deps), timeout=30)
 
@@ -184,7 +184,7 @@ async def test_headers_duplicate (loader):
     async with loader ('/headers/duplicate') as l:
         await l.start ()
         async for it in l:
-            if it.parsedUrl.path == '/headers/duplicate':
+            if it.url.path == '/headers/duplicate':
                 assert not it.failed
                 dup = list (filter (lambda x: x[0] == 'Duplicate', it.responseHeaders))
                 assert len(dup) == 2
@@ -200,7 +200,7 @@ async def test_headers_req (loader):
     async with loader ('/headers/fetch/html') as l:
         await l.start ()
         async for it in l:
-            if it.parsedUrl.path == '/headers/fetch/req':
+            if it.url.path == '/headers/fetch/req':
                 assert not it.failed
                 dup = list (filter (lambda x: x[0] == 'custom', it.requestHeaders))
                 assert len(dup) == 1

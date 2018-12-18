@@ -23,9 +23,9 @@ Chrome browser interactions.
 """
 
 import asyncio
-from urllib.parse import urlsplit
 from base64 import b64decode
 from http.server import BaseHTTPRequestHandler
+from yarl import URL
 
 from .logger import Level
 from .devtools import Browser, TabException
@@ -72,11 +72,7 @@ class Item:
 
     @property
     def url (self):
-        return self.response.get ('url', self.request.get ('url'))
-
-    @property
-    def parsedUrl (self):
-        return urlsplit (self.url)
+        return URL (self.response.get ('url', self.request.get ('url')))
 
     @property
     def requestHeaders (self):
@@ -274,9 +270,9 @@ class SiteLoader:
     async def _requestWillBeSent (self, **kwargs):
         reqId = kwargs['requestId']
         req = kwargs['request']
-        logger = self.logger.bind (reqId=reqId, reqUrl=req['url'])
+        url = URL (req['url'])
+        logger = self.logger.bind (reqId=reqId, reqUrl=url)
 
-        url = urlsplit (req['url'])
         if url.scheme not in self.allowedSchemes:
             return
 
@@ -292,7 +288,7 @@ class SiteLoader:
                 resp = {'requestId': reqId, 'encodedDataLength': 0, 'timestamp': kwargs['timestamp']}
                 item.setFinished (resp)
                 item.isRedirect = True
-                logger.info ('redirect', uuid='85eaec41-e2a9-49c2-9445-6f19690278b8', target=req['url'])
+                logger.info ('redirect', uuid='85eaec41-e2a9-49c2-9445-6f19690278b8', target=url)
                 await item.prefetchRequestBody (self.tab)
                 # cannot fetch request body due to race condition (item id reused)
                 ret = item
@@ -313,8 +309,10 @@ class SiteLoader:
             return
 
         resp = kwargs['response']
-        logger = self.logger.bind (reqId=reqId, respUrl=resp['url'])
-        url = urlsplit (resp['url'])
+        url = URL (resp['url'])
+        logger = self.logger.bind (reqId=reqId, respUrl=url)
+        if item.url != url:
+            logger.error ('url mismatch', uuid='7385f45f-0b06-4cbc-81f9-67bcd72ee7d0', respUrl=url)
         if url.scheme in self.allowedSchemes:
             logger.debug ('response', uuid='84461c4e-e8ef-4cbd-8e8e-e10a901c8bd0')
             item.setResponse (kwargs)
@@ -332,12 +330,8 @@ class SiteLoader:
             # we never recorded this request (blacklisted scheme, for example)
             return
         req = item.request
-        logger = self.logger.bind (reqId=reqId, reqUrl=req['url'])
-        resp = item.response
-        if req['url'] != resp['url']:
-            logger.error ('url mismatch', uuid='7385f45f-0b06-4cbc-81f9-67bcd72ee7d0', respUrl=resp['url'])
-        url = urlsplit (resp['url'])
-        if url.scheme in self.allowedSchemes:
+        logger = self.logger.bind (reqId=reqId, reqUrl=item.url)
+        if item.url.scheme in self.allowedSchemes:
             logger.info ('finished', uuid='5a8b4bad-f86a-4fe6-a53e-8da4130d6a02')
             item.setFinished (kwargs)
             await asyncio.gather (item.prefetchRequestBody (self.tab), item.prefetchResponseBody (self.tab))

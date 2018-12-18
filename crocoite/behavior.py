@@ -35,15 +35,15 @@ instance.
 """
 
 import asyncio, json, os.path
-from urllib.parse import urlsplit
 from base64 import b64decode
 from collections import OrderedDict
 import pkg_resources
 
 from html5lib.serializer import HTMLSerializer
+from yarl import URL
 import yaml
 
-from .util import getFormattedViewportMetrics, removeFragment
+from .util import getFormattedViewportMetrics
 from . import html
 from .html import StripAttributeFilter, StripTagFilter, ChromeTreeWalker
 from .devtools import Crashed
@@ -106,16 +106,6 @@ class Behavior:
         """ After the site has stopped loading """
         return
         yield
-
-class HostnameFilter:
-    """ Limit behavior script to hostname """
-
-    hostname = None
-
-    def __contains__ (self, url):
-        url = urlsplit (url)
-        hostname = url.hostname.split ('.')[::-1]
-        return hostname[:2] == self.hostname
 
 class JsOnload (Behavior):
     """ Execute JavaScript on page load """
@@ -237,16 +227,14 @@ class DomSnapshot (Behavior):
         dom = await tab.DOM.getDocument (depth=-1, pierce=True)
         haveUrls = set ()
         for doc in ChromeTreeWalker (dom['root']).split ():
-            rawUrl = doc['documentURL']
-            if rawUrl in haveUrls:
+            url = URL (doc['documentURL'])
+            if url in haveUrls:
                 # ignore duplicate URLs. they are usually caused by
                 # javascript-injected iframes (advertising) with no(?) src
-                self.logger.warning ('have DOM snapshot for URL {}, ignoring'.format (rawUrl))
-                continue
-            url = urlsplit (rawUrl)
-            if url.scheme in ('http', 'https'):
+                self.logger.warning ('have DOM snapshot for URL {}, ignoring'.format (url))
+            elif url.scheme in ('http', 'https'):
                 self.logger.debug ('saving DOM snapshot for url {}, base {}'.format (doc['documentURL'], doc['baseURL']))
-                haveUrls.add (rawUrl)
+                haveUrls.add (url)
                 walker = ChromeTreeWalker (doc)
                 # remove script, to make the page static and noscript, because at the
                 # time we took the snapshot scripts were enabled
@@ -254,7 +242,7 @@ class DomSnapshot (Behavior):
                 disallowedAttributes = html.eventAttributes
                 stream = StripAttributeFilter (StripTagFilter (walker, disallowedTags), disallowedAttributes)
                 serializer = HTMLSerializer ()
-                yield DomSnapshotEvent (removeFragment (doc['documentURL']), serializer.render (stream, 'utf-8'), viewport)
+                yield DomSnapshotEvent (url.with_fragment(None), serializer.render (stream, 'utf-8'), viewport)
 
 class ScreenshotEvent:
     __slots__ = ('yoff', 'data', 'url')
@@ -276,7 +264,7 @@ class Screenshot (Behavior):
 
         tree = await tab.Page.getFrameTree ()
         try:
-            url = removeFragment (tree['frameTree']['frame']['url'])
+            url = URL (tree['frameTree']['frame']['url']).with_fragment (None)
         except KeyError:
             self.logger.error ('frame without url', tree=tree)
             url = None
@@ -333,7 +321,7 @@ class ExtractLinks (Behavior):
         tab = self.loader.tab
         yield self.script
         result = await tab.Runtime.evaluate (expression=str (self.script), returnByValue=True)
-        yield ExtractLinksEvent (list (set (result['result']['value'])))
+        yield ExtractLinksEvent (list (set (map (URL, result['result']['value']))))
 
 class Crash (Behavior):
     """ Crash the browser. For testing only. Obviously. """

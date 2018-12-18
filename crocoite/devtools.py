@@ -27,6 +27,8 @@ from tempfile import mkdtemp
 import shutil
 import aiohttp, websockets
 
+from .util import StrJsonEncoder
+
 logger = logging.getLogger (__name__)
 
 class Browser:
@@ -155,7 +157,7 @@ class Tab:
         message = {'method': method, 'params': kwargs, 'id': msgid}
         t = self.transactions[msgid] = {'event': asyncio.Event (), 'result': None}
         logger.debug ('← {}'.format (message))
-        await self.ws.send (json.dumps (message))
+        await self.ws.send (json.dumps (message, cls=StrJsonEncoder))
         await t['event'].wait ()
         ret = t['result']
         del self.transactions[msgid]

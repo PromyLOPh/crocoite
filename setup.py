@@ -17,6 +17,7 @@ setup(
         'websockets',
         'aiohttp',
         'PyYAML',
+        'yarl',
     ],
     entry_points={
     'console_scripts': [

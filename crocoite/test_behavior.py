@@ -19,9 +19,9 @@
 # THE SOFTWARE.
 
 import asyncio, os, yaml, re
-from urllib.parse import urlparse
 from functools import partial
 import pytest
+from yarl import URL
 
 import pkg_resources
 from .logger import Logger
@@ -87,12 +87,12 @@ matchParam = []
 for o in sites:
     for s in o['selector']:
         for u in s.get ('urls', []):
-            matchParam.append ((o['match'], u))
+            matchParam.append ((o['match'], URL (u)))
 
 @pytest.mark.parametrize("match,url", matchParam)
 @pytest.mark.asyncio
 async def test_click_match (match, url):
     """ Test urls must match """
-    host = urlparse (url).netloc
-    assert re.match (match, host, re.I)
+    # keep this aligned with click.js
+    assert re.match (match, url.host, re.I)
 

@@ -24,14 +24,13 @@ Classes writing data to WARC files
 
 import json, threading
 from io import BytesIO
-from urllib.parse import urlsplit
 from datetime import datetime
 
 from warcio.timeutils import datetime_to_iso_date
 from warcio.warcwriter import WARCWriter
 from warcio.statusandheaders import StatusAndHeaders
 
-from .util import packageUrl
+from .util import packageUrl, StrJsonEncoder
 from .controller import EventHandler, ControllerStart
 from .behavior import Script, DomSnapshotEvent, ScreenshotEvent
 from .browser import Item
@@ -75,7 +74,7 @@ class WarcHandler (EventHandler):
         d.update (warc_headers_dict)
         warc_headers_dict = d
 
-        record = self.writer.create_warc_record (url, kind, payload=payload,
+        record = self.writer.create_warc_record (str (url), kind, payload=payload,
                 warc_headers_dict=warc_headers_dict, http_headers=http_headers)
         self.writer.write_record (record)
 
@@ -85,12 +84,9 @@ class WarcHandler (EventHandler):
         logger = self.logger.bind (reqId=item.id)
 
         req = item.request
-        resp = item.response
-        url = urlsplit (resp['url'])
+        url = item.url
 
-        path = url.path
-        if url.query:
-            path += '?' + url.query
+        path = url.relative().with_fragment(None)
         httpHeaders = StatusAndHeaders('{} {} HTTP/1.1'.format (req['method'], path),
                 item.requestHeaders, protocol='HTTP/1.1', is_http_request=True)
         initiator = item.initiator
@@ -111,7 +107,7 @@ class WarcHandler (EventHandler):
         if payload:
             payload = BytesIO (payload)
             warcHeaders['X-Chrome-Base64Body'] = str (payloadBase64Encoded)
-        record = self.writeRecord (req['url'], 'request',
+        record = self.writeRecord (url, 'request',
                 payload=payload, http_headers=httpHeaders,
                 warc_headers_dict=warcHeaders)
         return record.rec_headers['WARC-Record-ID']
@@ -172,7 +168,7 @@ class WarcHandler (EventHandler):
         else:
             bodyIo = BytesIO ()
 
-        record = self.writeRecord (resp['url'], 'response',
+        record = self.writeRecord (item.url, 'response',
                 warc_headers_dict=warcHeaders, payload=bodyIo,
                 http_headers=httpHeaders)
 
@@ -225,7 +221,7 @@ class WarcHandler (EventHandler):
                 payload=BytesIO (item.data), warc_headers_dict=warcHeaders)
 
     def _writeControllerStart (self, item):
-        payload = BytesIO (json.dumps (item.payload, indent=2).encode ('utf-8'))
+        payload = BytesIO (json.dumps (item.payload, indent=2, cls=StrJsonEncoder).encode ('utf-8'))
 
         writer = self.writer
         warcinfo = self.writeRecord (packageUrl ('warcinfo'), 'warcinfo',
