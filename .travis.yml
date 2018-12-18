@@ -1,11 +1,16 @@
 dist: xenial
 language: python
-python:
-    - "3.6"
-    - "3.6-dev"
-    - "3.7"
-    - "3.7-dev"
-    - "3.8-dev"
+matrix:
+  include:
+    - python: "3.6"
+    - python: "3.7"
+    - python: "3.6-dev"
+    - python: "3.7-dev"
+    - python: "3.8-dev"
+  allow_failures:
+    - python: "3.6-dev"
+    - python: "3.7-dev"
+    - python: "3.8-dev"
 install:
     - pip install .
 script:
