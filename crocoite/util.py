@@ -87,7 +87,7 @@ def getRequirements (dist):
             pkg = getattr (m, '__package__', None)
             # is loaded?
             if pkg in modules:
-                if f:
+                if f and os.path.isfile (f):
                     with open (f, 'rb') as fd:
                         contents = fd.read ()
                         h = hashlib.new ('sha512')
