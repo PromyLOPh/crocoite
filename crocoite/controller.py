@@ -50,17 +50,11 @@ class EventHandler:
 
     __slots__ = ()
 
-    # this handler wants to know about exceptions before they are reraised by
-    # the controller
-    acceptException = False
-
     def push (self, item):
         raise NotImplementedError ()
 
 class StatsHandler (EventHandler):
     __slots__ = ('stats', )
-
-    acceptException = True
 
     def __init__ (self):
         self.stats = {'requests': 0, 'finished': 0, 'failed': 0, 'bytesRcv': 0}
