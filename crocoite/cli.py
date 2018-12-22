@@ -120,11 +120,12 @@ def recursive ():
             tempdir=args.tempdir, prefix=args.prefix,
             concurrency=args.concurrency)
 
+    run = asyncio.ensure_future (controller.run ())
     loop = asyncio.get_event_loop()
-    stop = lambda signum: controller.cancel ()
+    stop = lambda signum: run.cancel ()
     loop.add_signal_handler (signal.SIGINT, stop, signal.SIGINT)
     loop.add_signal_handler (signal.SIGTERM, stop, signal.SIGTERM)
-    loop.run_until_complete(controller.run ())
+    loop.run_until_complete(run)
     loop.close()
 
     return 0
