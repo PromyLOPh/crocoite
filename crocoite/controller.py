@@ -27,6 +27,7 @@ import tempfile, asyncio, json, os
 from itertools import islice
 from datetime import datetime
 from operator import attrgetter
+from yarl import URL
 
 from . import behavior as cbehavior
 from .browser import SiteLoader, Item
@@ -336,7 +337,7 @@ class RecursiveController:
                 data = json.loads (data)
                 uuid = data.get ('uuid')
                 if uuid == '8ee5e9c9-1130-4c5c-88ff-718508546e0c':
-                    links = set (self.policy (map (lambda x: x.with_fragment(None), data.get ('links', []))))
+                    links = set (self.policy (map (lambda x: URL(x).with_fragment(None), data.get ('links', []))))
                     links.difference_update (self.have)
                     self.pending.update (links)
                 elif uuid == '24d92d16-770e-4088-b769-4020e127a7ff':
