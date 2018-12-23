@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import asyncio
+import asyncio, socket
 import pytest
 from operator import itemgetter
 from aiohttp import web
@@ -259,12 +259,22 @@ async def test_crash (loader):
 
 @pytest.mark.asyncio
 async def test_invalidurl (loader):
-    url = 'http://nonexistent.example/'
-    async with loader (url) as l:
-        await l.start ()
-        async for it in l:
-            assert it.failed
-            break
+    host = 'nonexistent.example'
+
+    # make sure the url does *not* resolve (some DNS intercepting ISP’s mess
+    # with this)
+    loop = asyncio.get_event_loop ()
+    try:
+        resolved = await loop.getaddrinfo (host, None)
+    except socket.gaierror:
+        async with loader (f'http://{host}/') as l:
+            await l.start ()
+            async for it in l:
+                assert it.failed
+                break
+    else:
+        pytest.skip (f'host {host} resolved to {resolved}')
+
 
 @pytest.mark.asyncio
 async def test_varchangeevent ():
