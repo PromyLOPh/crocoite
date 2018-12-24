@@ -106,7 +106,7 @@ async def server ():
     """ Simple HTTP server for testing notifications """
     import logging
     logging.basicConfig(level=logging.DEBUG)
-    app = web.Application(debug=True)
+    app = web.Application()
     for item in testItems:
         app.router.add_route ('*', item.url.path, itemToResponse (item))
     runner = web.AppRunner(app)
