@@ -87,7 +87,7 @@ class WarcHandler (EventHandler):
         url = item.url
 
         path = url.relative().with_fragment(None)
-        httpHeaders = StatusAndHeaders('{} {} HTTP/1.1'.format (req['method'], path),
+        httpHeaders = StatusAndHeaders(f'{req["method"]} {path} HTTP/1.1',
                 item.requestHeaders, protocol='HTTP/1.1', is_http_request=True)
         initiator = item.initiator
         warcHeaders = {
@@ -144,8 +144,8 @@ class WarcHandler (EventHandler):
         else:
             warcHeaders['X-Chrome-Base64Body'] = str (base64Encoded)
 
-        httpHeaders = StatusAndHeaders('{} {}'.format (resp['status'],
-                item.statusText), item.responseHeaders,
+        httpHeaders = StatusAndHeaders(f'{resp["status"]} {item.statusText}',
+                item.responseHeaders,
                 protocol='HTTP/1.1')
 
         # Content is saved decompressed and decoded, remove these headers
@@ -163,7 +163,7 @@ class WarcHandler (EventHandler):
             httpHeaders.replace_header ('content-type', contentType)
 
         if rawBody is not None:
-            httpHeaders.replace_header ('content-length', '{:d}'.format (len (rawBody)))
+            httpHeaders.replace_header ('content-length', str (len (rawBody)))
             bodyIo = BytesIO (rawBody)
         else:
             bodyIo = BytesIO ()
@@ -178,9 +178,10 @@ class WarcHandler (EventHandler):
     def _writeScript (self, item):
         writer = self.writer
         encoding = 'utf-8'
-        self.writeRecord (packageUrl ('script/{}'.format (item.path)), 'metadata',
+        self.writeRecord (packageUrl (f'script/{item.path}'), 'metadata',
                 payload=BytesIO (str (item).encode (encoding)),
-                warc_headers_dict={'Content-Type': 'application/javascript; charset={}'.format (encoding)})
+                warc_headers_dict={'Content-Type':
+                f'application/javascript; charset={encoding}'})
 
     def _writeItem (self, item):
         if item.failed:
@@ -195,7 +196,7 @@ class WarcHandler (EventHandler):
         if refersTo:
             headers['WARC-Refers-To'] = refersTo
         else:
-            self.logger.error ('No document record found for {}'.format (url))
+            self.logger.error (f'No document record found for {url}')
         return headers
 
     def _writeDomSnapshot (self, item):
@@ -234,7 +235,7 @@ class WarcHandler (EventHandler):
         self.log.seek (0)
         # XXX: we should use the type continuation here
         self.writeRecord (packageUrl ('log'), 'resource', payload=self.log,
-                warc_headers_dict={'Content-Type': 'text/plain; encoding={}'.format (self.logEncoding)})
+                warc_headers_dict={'Content-Type': f'text/plain; encoding={self.logEncoding}'})
         self.log = BytesIO ()
 
     def _writeLog (self, item):
@@ -262,5 +263,5 @@ class WarcHandler (EventHandler):
                 break
 
         if not processed:
-            self.logger.debug ('unknown event {}'.format (repr (item)))
+            self.logger.debug (f'unknown event {item!r}')
 

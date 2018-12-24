@@ -26,6 +26,7 @@ import json, asyncio, logging, os
 from tempfile import mkdtemp
 import shutil
 import aiohttp, websockets
+from yarl import URL
 
 from .util import StrJsonEncoder
 
@@ -42,7 +43,7 @@ class Browser:
     __slots__ = ('session', 'url', 'tab', 'loop')
 
     def __init__ (self, url, loop=None):
-        self.url = url
+        self.url = URL (url)
         self.session = None
         self.tab = None
         self.loop = loop
@@ -50,7 +51,7 @@ class Browser:
     async def __aiter__ (self):
         """ List all tabs """
         async with aiohttp.ClientSession (loop=self.loop) as session:
-            async with session.get ('{}/json/list'.format (self.url)) as r:
+            async with session.get (self.url.with_path ('/json/list')) as r:
                 resp = await r.json ()
                 for tab in resp:
                     if tab['type'] == 'page':
@@ -61,7 +62,7 @@ class Browser:
         assert self.tab is None
         assert self.session is None
         self.session = aiohttp.ClientSession (loop=self.loop)
-        async with self.session.get ('{}/json/new'.format (self.url)) as r:
+        async with self.session.get (self.url.with_path ('/json/new')) as r:
             resp = await r.json ()
             self.tab = await Tab.create (**resp)
             return self.tab
@@ -70,7 +71,7 @@ class Browser:
         assert self.tab is not None
         assert self.session is not None
         await self.tab.close ()
-        async with self.session.get ('{}/json/close/{}'.format (self.url, self.tab.id)) as r:
+        async with self.session.get (self.url.with_path (f'/json/close/{self.tab.id}')) as r:
             resp = await r.text ()
             assert resp == 'Target is closing'
         self.tab = None
@@ -103,13 +104,13 @@ class TabFunction:
         return hash (self.name)
 
     def __getattr__ (self, k):
-        return TabFunction ('{}.{}'.format (self.name, k), self.tab)
+        return TabFunction (f'{self.name}.{k}', self.tab)
 
     async def __call__ (self, **kwargs):
         return await self.tab (self.name, **kwargs)
 
     def __repr__ (self):
-        return '<TabFunction {}>'.format (self.name)
+        return f'<TabFunction {self.name}>'
 
 class TabException (Exception):
     pass
@@ -156,7 +157,7 @@ class Tab:
         self.msgid += 1
         message = {'method': method, 'params': kwargs, 'id': msgid}
         t = self.transactions[msgid] = {'event': asyncio.Event (), 'result': None}
-        logger.debug ('← {}'.format (message))
+        logger.debug (f'← {message}')
         await self.ws.send (json.dumps (message, cls=StrJsonEncoder))
         await t['event'].wait ()
         ret = t['result']
@@ -191,7 +192,7 @@ class Tab:
                 # right now we cannot recover from this
                 await markCrashed (e)
                 break
-            logger.debug ('→ {}'.format (msg))
+            logger.debug (f'→ {msg}')
             if 'id' in msg:
                 msgid = msg['id']
                 t = self.transactions.get (msgid, None)
@@ -272,7 +273,7 @@ class Process:
         # see https://github.com/GoogleChrome/chrome-launcher/blob/master/docs/chrome-flags-for-tools.md
         args = [self.binary,
                 '--window-size={},{}'.format (*self.windowSize),
-                '--user-data-dir={}'.format (self.userDataDir), # use temporory user dir
+                f'--user-data-dir={self.userDataDir}', # use temporory user dir
                 '--no-default-browser-check',
                 '--no-first-run', # don’t show first run screen
                 '--disable-breakpad', # no error reports
@@ -317,7 +318,7 @@ class Process:
         if port is None:
             raise Exception ('Chrome died on us.')
 
-        return 'http://localhost:{}'.format (port)
+        return URL.build(scheme='http', host='localhost', port=port)
 
     async def __aexit__ (self, *exc):
         self.p.terminate ()
@@ -330,7 +331,7 @@ class Passthrough:
     __slots__ = ('url', )
 
     def __init__ (self, url):
-        self.url = url
+        self.url = URL (url)
 
     async def __aenter__ (self):
         return self.url

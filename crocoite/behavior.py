@@ -59,7 +59,7 @@ class Script:
             self.data = pkg_resources.resource_string (__name__, os.path.join ('data', path)).decode (encoding)
 
     def __repr__ (self):
-        return '<Script {}>'.format (self.path)
+        return f'<Script {self.path}>'
 
     def __str__ (self):
         return self.data
@@ -89,7 +89,7 @@ class Behavior:
         return True
 
     def __repr__ (self):
-        return '<Behavior {}>'.format (self.name)
+        return f'<Behavior {self.name}>'
 
     async def onload (self):
         """ After loading the page started """
@@ -138,7 +138,7 @@ class JsOnload (Behavior):
         constructor = result['objectId']
 
         if self.options:
-            yield Script.fromStr (json.dumps (self.options, indent=2), '{}/options'.format (self.script.path))
+            yield Script.fromStr (json.dumps (self.options, indent=2), f'{self.script.path}/options')
         result = await tab.Runtime.callFunctionOn (
                 functionDeclaration='function(options){return new this(options);}',
                 objectId=constructor,
@@ -231,9 +231,9 @@ class DomSnapshot (Behavior):
             if url in haveUrls:
                 # ignore duplicate URLs. they are usually caused by
                 # javascript-injected iframes (advertising) with no(?) src
-                self.logger.warning ('have DOM snapshot for URL {}, ignoring'.format (url))
+                self.logger.warning (f'have DOM snapshot for URL {url}, ignoring')
             elif url.scheme in ('http', 'https'):
-                self.logger.debug ('saving DOM snapshot for url {}, base {}'.format (doc['documentURL'], doc['baseURL']))
+                self.logger.debug (f'saving DOM snapshot for url {url}, base {doc["baseURL"]}')
                 haveUrls.add (url)
                 walker = ChromeTreeWalker (doc)
                 # remove script, to make the page static and noscript, because at the

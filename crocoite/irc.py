@@ -53,7 +53,7 @@ def prettyBytes (b):
     while b >= 1024 and len (prefixes) > 1:
         b /= 1024
         prefixes.pop (0)
-    return '{:.1f} {}'.format (b, prefixes[0])
+    return f'{b:.1f} {prefixes[0]}'
 
 def isValidUrl (s):
     url = urlsplit (s)
@@ -104,16 +104,13 @@ class Job:
     def formatStatus (self):
         stats = self.stats
         rstats = self.rstats
-        return '{} ({}) {}. {} pages finished, {} pending; {} crashed, {} requests, {} failed, {} received.'.format (
-                self.url,
-                self.id,
-                self.status.name,
-                rstats.get ('have', 0),
-                rstats.get ('pending', 0),
-                stats.get ('crashed', 0),
-                stats.get ('requests', 0),
-                stats.get ('failed', 0),
-                prettyBytes (stats.get ('bytesRcv', 0)))
+        return (f"{self.url} ({self.id}) {self.status.name}. "
+                "{rstats.get ('have', 0)} pages finished, "
+                "{rstats.get ('pending', 0)} pending; "
+                "{stats.get ('crashed', 0)} crashed, "
+                "{stats.get ('requests', 0)} requests, "
+                "{stats.get ('failed', 0)} failed, "
+                "{prettyBytes (stats.get ('bytesRcv', 0))} received.")
 
 class NickMode(Enum):
     operator = '@'
@@ -138,7 +135,7 @@ class User:
         return hash (self.name)
 
     def __repr__ (self):
-        return '<User {} {}>'.format (self.name, self.modes)
+        return f'<User {self.name} {self.modes}>'
 
     @classmethod
     def fromName (cls, name):
@@ -159,7 +156,8 @@ class ReplyContext:
         self.user = user
 
     def __call__ (self, message):
-        self.client.send ('PRIVMSG', target=self.target, message='{}: {}'.format (self.user.name, message))
+        self.client.send ('PRIVMSG', target=self.target,
+                message=f'{self.user.name}: {message}')
 
 class RefCountEvent:
     """
@@ -321,10 +319,10 @@ class ArgparseBot (bottom.Client):
             try:
                 args = self.parser.parse_args (command)
             except Exception as e:
-                reply ('{} -- {}'.format (e.args[1], e.args[0].format_usage ()))
+                reply (f'{e.args[1]} -- {e.args[0].format_usage ()}')
                 return
             if not args:
-                reply ('Sorry, I don’t understand {}'.format (command))
+                reply (f'Sorry, I don’t understand {command}')
                 return
 
             if self._quit.armed and not getattr (args, 'allowOnShutdown', False):
@@ -363,7 +361,7 @@ def jobExists (func):
         reply = kwargs.get ('reply')
         j = self.jobs.get (args.id, None)
         if not j:
-            reply ('Job {} is unknown'.format (args.id))
+            reply (f'Job {args.id} is unknown')
         else:
             ret = await func (self, job=j, **kwargs)
             return ret
@@ -426,7 +424,7 @@ class Chromebot (ArgparseBot):
                 'concurrency': args.concurrency,
                 }
         strargs = ', '.join (map (lambda x: '{}={}'.format (*x), showargs.items ()))
-        reply ('{} has been queued as {} with {}'.format (args.url, j.id, strargs))
+        reply (f'{args.url} has been queued as {j.id} with {strargs}')
         logger.info ('queue', user=user.name, url=args.url, cmdline=cmdline,
                 uuid='36cc34a6-061b-4cc5-84a9-4ab6552c8d75')
 

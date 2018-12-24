@@ -142,7 +142,7 @@ async def itemsLoaded (l, items):
         assert item.chromeResponse is not None
         golden = items.pop (item.url.path)
         if not golden:
-            assert False, 'url {} not supposed to be fetched'.format (item.url)
+            assert False, f'url {item.url} not supposed to be fetched'
         assert item.failed == golden.failed
         if item.failed:
             # response will be invalid if request failed

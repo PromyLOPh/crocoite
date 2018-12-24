@@ -248,7 +248,7 @@ class DepthLimit (RecursionPolicy):
             return urls
 
     def __repr__ (self):
-        return '<DepthLimit {}>'.format (self.maxdepth)
+        return f'<DepthLimit {self.maxdepth}>'
 
 class PrefixLimit (RecursionPolicy):
     """

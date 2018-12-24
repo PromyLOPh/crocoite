@@ -48,8 +48,8 @@ def packageUrl (path):
 async def getFormattedViewportMetrics (tab):
     layoutMetrics = await tab.Page.getLayoutMetrics ()
     # XXX: I’m not entirely sure which one we should use here
-    return '{}x{}'.format (layoutMetrics['layoutViewport']['clientWidth'],
-                layoutMetrics['layoutViewport']['clientHeight'])
+    viewport = layoutMetrics['layoutViewport']
+    return f"{viewport['clientWidth']}x{viewport['clientHeight']}"
 
 def getSoftwareInfo ():
     """ Get software info for inclusion into warcinfo """

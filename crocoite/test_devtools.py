@@ -24,7 +24,8 @@ import pytest
 from aiohttp import web
 import websockets
 
-from .devtools import Browser, Tab, MethodNotFound, Crashed, InvalidParameter, Process, Passthrough
+from .devtools import Browser, Tab, MethodNotFound, Crashed, \
+        InvalidParameter, Process, Passthrough
 
 @pytest.fixture
 async def browser ():
@@ -73,8 +74,10 @@ async def test_tab_close (browser):
 
 @pytest.mark.asyncio
 async def test_tab_notify_enable_disable (tab):
-    """ Make sure enabling/disabling notifications works for all known namespaces """
-    for name in ('Debugger', 'DOM', 'Log', 'Network', 'Page', 'Performance', 'Profiler', 'Runtime', 'Security'):
+    """ Make sure enabling/disabling notifications works for all known
+    namespaces """
+    for name in ('Debugger', 'DOM', 'Log', 'Network', 'Page', 'Performance',
+            'Profiler', 'Runtime', 'Security'):
         f = getattr (tab, name)
         await f.enable ()
         await f.disable ()
@@ -149,7 +152,8 @@ async def test_tab_function (tab):
 
 @pytest.mark.asyncio
 async def test_tab_function_hash (tab):
-    d = {tab.Network.enable: 1, tab.Network.disable: 2, tab.Page: 3, tab.Page.enable: 4}
+    d = {tab.Network.enable: 1, tab.Network.disable: 2, tab.Page: 3,
+            tab.Page.enable: 4}
     assert len (d) == 4
 
 @pytest.mark.asyncio
@@ -168,5 +172,5 @@ async def test_passthrough ():
 
     url = 'http://localhost:12345'
     async with Passthrough (url) as u:
-        assert u == url
+        assert str (u) == url
 

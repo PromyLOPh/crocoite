@@ -48,7 +48,7 @@ class Item:
         self.requestBody = None
 
     def __repr__ (self):
-        return '<Item {}>'.format (self.url)
+        return f'<Item {self.url}>'
 
     @property
     def request (self):

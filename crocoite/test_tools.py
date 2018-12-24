@@ -97,7 +97,7 @@ def test_different_payload(writer):
 
         httpHeaders = StatusAndHeaders('200 OK', {}, protocol='HTTP/1.1')
         record = writer.create_warc_record ('http://example.com/', 'response',
-                payload=BytesIO('data{}'.format(i).encode ('utf8')),
+                payload=BytesIO(f'data{i}'.encode ('utf8')),
                 warc_headers_dict=warcHeaders, http_headers=httpHeaders)
         records.append (record)
 
