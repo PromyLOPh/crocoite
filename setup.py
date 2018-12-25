@@ -34,5 +34,5 @@ setup(
             'crocoite': ['data/*'],
     },
     setup_requires=["pytest-runner"],
-    tests_require=["pytest", 'pytest-asyncio', 'pytest-cov'],
+    tests_require=["pytest", 'pytest-asyncio', 'pytest-cov', 'hypothesis'],
 )

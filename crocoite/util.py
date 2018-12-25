@@ -22,7 +22,7 @@
 Random utility functions
 """
 
-import random, sys, platform, os, json
+import random, sys, platform, os, json, urllib
 from datetime import datetime
 import hashlib, pkg_resources
 
@@ -43,7 +43,7 @@ def packageUrl (path):
     """
     Create URL for package data stored into WARC
     """
-    return 'urn:' + __package__ + ':' + path
+    return 'urn:' + __package__ + ':' + urllib.parse.quote (path)
 
 async def getFormattedViewportMetrics (tab):
     layoutMetrics = await tab.Page.getLayoutMetrics ()

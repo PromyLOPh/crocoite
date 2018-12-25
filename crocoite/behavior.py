@@ -197,6 +197,9 @@ class DomSnapshotEvent:
     __slots__ = ('url', 'document', 'viewport')
 
     def __init__ (self, url, document, viewport):
+        # XXX: document encoding?
+        assert isinstance (document, bytes)
+
         self.url = url
         self.document = document
         self.viewport = viewport

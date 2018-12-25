@@ -39,8 +39,7 @@ class WarcHandler (EventHandler):
     __slots__ = ('logger', 'writer', 'documentRecords', 'log',
             'maxLogSize', 'logEncoding', 'warcinfoRecordId')
 
-    def __init__ (self, fd,
-            logger):
+    def __init__ (self, fd, logger):
         self.logger = logger
         self.writer = WARCWriter (fd, gzip=True)
 
@@ -104,7 +103,7 @@ class WarcHandler (EventHandler):
             warcHeaders['WARC-Truncated'] = 'unspecified'
             payload = None
 
-        if payload:
+        if payload is not None:
             payload = BytesIO (payload)
             warcHeaders['X-Chrome-Base64Body'] = str (payloadBase64Encoded)
         record = self.writeRecord (url, 'request',
@@ -160,10 +159,10 @@ class WarcHandler (EventHandler):
         if contentType:
             if not base64Encoded:
                 contentType += '; charset=utf-8'
-            httpHeaders.replace_header ('content-type', contentType)
+            httpHeaders.replace_header ('Content-Type', contentType)
 
         if rawBody is not None:
-            httpHeaders.replace_header ('content-length', str (len (rawBody)))
+            httpHeaders.replace_header ('Content-Length', str (len (rawBody)))
             bodyIo = BytesIO (rawBody)
         else:
             bodyIo = BytesIO ()
@@ -178,7 +177,8 @@ class WarcHandler (EventHandler):
     def _writeScript (self, item):
         writer = self.writer
         encoding = 'utf-8'
-        self.writeRecord (packageUrl (f'script/{item.path}'), 'metadata',
+        path = item.path or '-'
+        self.writeRecord (packageUrl (f'script/{path}'), 'metadata',
                 payload=BytesIO (str (item).encode (encoding)),
                 warc_headers_dict={'Content-Type':
                 f'application/javascript; charset={encoding}'})
@@ -231,20 +231,19 @@ class WarcHandler (EventHandler):
         self.warcinfoRecordId = warcinfo.rec_headers['WARC-Record-ID']
 
     def _flushLogEntries (self):
-        writer = self.writer
-        self.log.seek (0)
-        # XXX: we should use the type continuation here
-        self.writeRecord (packageUrl ('log'), 'resource', payload=self.log,
-                warc_headers_dict={'Content-Type': f'text/plain; encoding={self.logEncoding}'})
-        self.log = BytesIO ()
+        if self.log.tell () > 0:
+            writer = self.writer
+            self.log.seek (0)
+            # XXX: we should use the type continuation here
+            self.writeRecord (packageUrl ('log'), 'resource', payload=self.log,
+                    warc_headers_dict={'Content-Type': f'text/plain; encoding={self.logEncoding}'})
+            self.log = BytesIO ()
 
     def _writeLog (self, item):
         """ Handle log entries, called by .logger.WarcHandlerConsumer only """
         self.log.write (item.encode (self.logEncoding))
         self.log.write (b'\n')
-        # instead of locking, check we’re running in the main thread
-        if self.log.tell () > self.maxLogSize and \
-                threading.current_thread () is threading.main_thread ():
+        if self.log.tell () > self.maxLogSize:
             self._flushLogEntries ()
 
     route = {Script: _writeScript,
