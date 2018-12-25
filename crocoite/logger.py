@@ -43,9 +43,9 @@ class Level(IntEnum):
     ERROR = 3
 
 class Logger:
-    def __init__ (self, consumer=[], bindings={}):
-        self.bindings = bindings
-        self.consumer = consumer
+    def __init__ (self, consumer=None, bindings=None):
+        self.bindings = bindings or {}
+        self.consumer = consumer or []
 
     def __call__ (self, level, *args, **kwargs):
         if not isinstance (level, Level):

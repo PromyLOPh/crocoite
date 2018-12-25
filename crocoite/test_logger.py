@@ -80,3 +80,12 @@ def test_datetime (logger):
     ret = logger.debug()
     assert 'date' in ret
 
+def test_independence ():
+    """ Make sure two instances are completely independent """
+    l1 = Logger ()
+    c = QueueConsumer ()
+    l1.connect (c)
+    l2 = Logger ()
+    l2.info (nothing='nothing')
+    assert not c.data
+
