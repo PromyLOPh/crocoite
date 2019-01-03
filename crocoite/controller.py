@@ -30,7 +30,7 @@ from operator import attrgetter
 from yarl import URL
 
 from . import behavior as cbehavior
-from .browser import SiteLoader, Item
+from .browser import SiteLoader, RequestResponsePair
 from .util import getFormattedViewportMetrics, getSoftwareInfo
 from .behavior import ExtractLinksEvent
 
@@ -61,13 +61,13 @@ class StatsHandler (EventHandler):
         self.stats = {'requests': 0, 'finished': 0, 'failed': 0, 'bytesRcv': 0}
 
     def push (self, item):
-        if isinstance (item, Item):
+        if isinstance (item, RequestResponsePair):
             self.stats['requests'] += 1
-            if item.failed:
+            if not item.response:
                 self.stats['failed'] += 1
             else:
                 self.stats['finished'] += 1
-                self.stats['bytesRcv'] += item.encodedDataLength
+                self.stats['bytesRcv'] += item.response.bytesReceived
 
 class LogHandler (EventHandler):
     """ Handle items by logging information about them """
@@ -126,7 +126,7 @@ class SinglePageController:
             async for item in l:
                 self.processItem (item)
 
-        async with self.service as browser, SiteLoader (browser, self.url, logger=logger) as l:
+        async with self.service as browser, SiteLoader (browser, logger=logger) as l:
             handle = asyncio.ensure_future (processQueue ())
 
             start = time.time ()
@@ -153,7 +153,7 @@ class SinglePageController:
                     }
             self.processItem (ControllerStart (payload))
 
-            await l.start ()
+            await l.navigate (self.url)
             for b in enabledBehavior:
                 async for item in b.onload ():
                     self.processItem (item)

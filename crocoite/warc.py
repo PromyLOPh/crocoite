@@ -25,6 +25,7 @@ Classes writing data to WARC files
 import json, threading
 from io import BytesIO
 from datetime import datetime
+from http.server import BaseHTTPRequestHandler
 
 from warcio.timeutils import datetime_to_iso_date
 from warcio.warcwriter import WARCWriter
@@ -33,7 +34,7 @@ from warcio.statusandheaders import StatusAndHeaders
 from .util import packageUrl, StrJsonEncoder
 from .controller import EventHandler, ControllerStart
 from .behavior import Script, DomSnapshotEvent, ScreenshotEvent
-from .browser import Item
+from .browser import RequestResponsePair, UnicodeBody, Base64Body
 
 class WarcHandler (EventHandler):
     __slots__ = ('logger', 'writer', 'documentRecords', 'log',
@@ -86,66 +87,51 @@ class WarcHandler (EventHandler):
         url = item.url
 
         path = url.relative().with_fragment(None)
-        httpHeaders = StatusAndHeaders(f'{req["method"]} {path} HTTP/1.1',
-                item.requestHeaders, protocol='HTTP/1.1', is_http_request=True)
-        initiator = item.initiator
+        httpHeaders = StatusAndHeaders(f'{req.method} {path} HTTP/1.1',
+                req.headers, protocol='HTTP/1.1', is_http_request=True)
         warcHeaders = {
-                'X-Chrome-Initiator': json.dumps (initiator),
+                'X-Chrome-Initiator': json.dumps (req.initiator),
                 'X-Chrome-Request-ID': item.id,
-                'WARC-Date': datetime_to_iso_date (datetime.utcfromtimestamp (item.chromeRequest['wallTime'])),
+                'WARC-Date': datetime_to_iso_date (req.timestamp),
                 }
 
-        if item.requestBody is not None:
-            payload, payloadBase64Encoded = item.requestBody
-        else:
+        body = item.request.body
+        if item.request.hasPostData and body is None:
             # oops, don’t know what went wrong here
-            logger.error ('requestBody missing', uuid='ee9adc58-e723-4595-9feb-312a67ead6a0')
+            logger.error ('requestBody missing',
+                    uuid='ee9adc58-e723-4595-9feb-312a67ead6a0')
             warcHeaders['WARC-Truncated'] = 'unspecified'
-            payload = None
-
-        if payload is not None:
-            payload = BytesIO (payload)
-            warcHeaders['X-Chrome-Base64Body'] = str (payloadBase64Encoded)
+        else:
+            warcHeaders['X-Chrome-Base64Body'] = str (type (body) is Base64Body)
+            body = BytesIO (body)
         record = self.writeRecord (url, 'request',
-                payload=payload, http_headers=httpHeaders,
+                payload=body, http_headers=httpHeaders,
                 warc_headers_dict=warcHeaders)
         return record.rec_headers['WARC-Record-ID']
 
     def _writeResponse (self, item, concurrentTo):
         # fetch the body
         reqId = item.id
-        rawBody = None
-        base64Encoded = False
-        bodyTruncated = None
-        if item.isRedirect or item.body is None:
-            # redirects reuse the same request, thus we cannot safely retrieve
-            # the body (i.e getResponseBody may return the new location’s
-            # body). No body available means we failed to retrieve it.
-            bodyTruncated = 'unspecified'
-        else:
-            rawBody, base64Encoded = item.body
 
         # now the response
         resp = item.response
         warcHeaders = {
                 'WARC-Concurrent-To': concurrentTo,
-                'WARC-IP-Address': resp.get ('remoteIPAddress', ''),
-                'X-Chrome-Protocol': resp.get ('protocol', ''),
-                'X-Chrome-FromDiskCache': str (resp.get ('fromDiskCache')),
-                'X-Chrome-ConnectionReused': str (resp.get ('connectionReused')),
                 'X-Chrome-Request-ID': item.id,
-                'WARC-Date': datetime_to_iso_date (datetime.utcfromtimestamp (
-                        item.chromeRequest['wallTime']+
-                        (item.chromeResponse['timestamp']-item.chromeRequest['timestamp']))),
+                'WARC-Date': datetime_to_iso_date (resp.timestamp),
                 }
-        if bodyTruncated:
-            warcHeaders['WARC-Truncated'] = bodyTruncated
-        else:
-            warcHeaders['X-Chrome-Base64Body'] = str (base64Encoded)
+        # conditional WARC headers
+        if item.remoteIpAddress:
+            warcHeaders['WARC-IP-Address'] = item.remoteIpAddress
+        if item.protocol:
+            warcHeaders['X-Chrome-Protocol'] = item.protocol
 
-        httpHeaders = StatusAndHeaders(f'{resp["status"]} {item.statusText}',
-                item.responseHeaders,
-                protocol='HTTP/1.1')
+        # HTTP headers
+        statusText = resp.statusText or \
+                BaseHTTPRequestHandler.responses.get (
+                resp.status, ('No status text available', ))[0]
+        httpHeaders = StatusAndHeaders(f'{resp.status} {statusText}',
+                resp.headers, protocol='HTTP/1.1')
 
         # Content is saved decompressed and decoded, remove these headers
         blacklistedHeaders = {'transfer-encoding', 'content-encoding'}
@@ -155,20 +141,23 @@ class WarcHandler (EventHandler):
         # chrome sends nothing but utf8 encoded text. Fortunately HTTP
         # headers take precedence over the document’s <meta>, thus we can
         # easily override those.
-        contentType = resp.get ('mimeType')
+        contentType = resp.mimeType
         if contentType:
-            if not base64Encoded:
+            if isinstance (resp.body, UnicodeBody):
                 contentType += '; charset=utf-8'
             httpHeaders.replace_header ('Content-Type', contentType)
 
-        if rawBody is not None:
-            httpHeaders.replace_header ('Content-Length', str (len (rawBody)))
-            bodyIo = BytesIO (rawBody)
+        # response body
+        body = resp.body
+        if body is None:
+            warcHeaders['WARC-Truncated'] = 'unspecified'
         else:
-            bodyIo = BytesIO ()
+            httpHeaders.replace_header ('Content-Length', str (len (body)))
+            warcHeaders['X-Chrome-Base64Body'] = str (type (body) is Base64Body)
+            body = BytesIO (body)
 
         record = self.writeRecord (item.url, 'response',
-                warc_headers_dict=warcHeaders, payload=bodyIo,
+                warc_headers_dict=warcHeaders, payload=body,
                 http_headers=httpHeaders)
 
         if item.resourceType == 'Document':
@@ -184,12 +173,11 @@ class WarcHandler (EventHandler):
                 f'application/javascript; charset={encoding}'})
 
     def _writeItem (self, item):
-        if item.failed:
-            # should have been handled by the logger already
-            return
-
+        assert item.request
         concurrentTo = self._writeRequest (item)
-        self._writeResponse (item, concurrentTo)
+        # items that failed loading don’t have a response
+        if item.response:
+            self._writeResponse (item, concurrentTo)
 
     def _addRefersTo (self, headers, url):
         refersTo = self.documentRecords.get (url)
@@ -247,7 +235,7 @@ class WarcHandler (EventHandler):
             self._flushLogEntries ()
 
     route = {Script: _writeScript,
-            Item: _writeItem,
+            RequestResponsePair: _writeItem,
             DomSnapshotEvent: _writeDomSnapshot,
             ScreenshotEvent: _writeScreenshot,
             ControllerStart: _writeControllerStart,

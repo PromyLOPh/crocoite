@@ -18,6 +18,7 @@ setup(
         'aiohttp',
         'PyYAML',
         'yarl',
+        'multidict',
     ],
     entry_points={
     'console_scripts': [

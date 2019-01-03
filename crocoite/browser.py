@@ -23,80 +23,197 @@ Chrome browser interactions.
 """
 
 import asyncio
-from base64 import b64decode
+from base64 import b64decode, b64encode
+from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler
+
 from yarl import URL
+from multidict import CIMultiDict
 
 from .logger import Level
 from .devtools import Browser, TabException
 
-class Item:
-    """
-    Simple wrapper containing Chrome request and response
-    """
+# These two classes’ only purpose is so we can later tell whether a body was
+# base64-encoded or a unicode string
+class Base64Body (bytes):
+    def __new__ (cls, value):
+        return bytes.__new__ (cls, b64decode (value))
 
-    __slots__ = ('chromeRequest', 'chromeResponse', 'chromeFinished',
-            'isRedirect', 'failed', 'body', 'requestBody')
+    @classmethod
+    def fromBytes (cls, b):
+        """ For testing """
+        return cls (b64encode (b))
 
-    def __init__ (self):
-        self.chromeRequest = {}
-        self.chromeResponse = {}
-        self.chromeFinished = {}
-        self.isRedirect = False
-        self.failed = False
-        self.body = None
-        self.requestBody = None
+class UnicodeBody (bytes):
+    def __new__ (cls, value):
+        if type (value) is not str:
+            raise TypeError ('expecting unicode string')
+
+        return bytes.__new__ (cls, value.encode ('utf-8'))
+
+class Request:
+    __slots__ = ('headers', 'body', 'initiator', 'hasPostData', 'method', 'timestamp')
+
+    def __init__ (self, method=None, headers=None, body=None):
+        self.headers = headers
+        self.body = body
+        self.hasPostData = False
+        self.initiator = None
+        # HTTP method
+        self.method = method
+        self.timestamp = None
 
     def __repr__ (self):
-        return f'<Item {self.url}>'
+        return f'Request({self.method!r}, {self.headers!r}, {self.body!r})'
 
-    @property
-    def request (self):
-        return self.chromeRequest.get ('request', {})
+    def __eq__ (self, b):
+        if b is None:
+            return False
 
-    @property
-    def response (self):
-        return self.chromeResponse.get ('response', {})
+        if not isinstance (b, Request):
+            raise TypeError ('Can only compare equality with Request.')
 
-    @property
-    def initiator (self):
-        return self.chromeRequest['initiator']
+        # do not compare hasPostData (only required to fetch body) and
+        # timestamp (depends on time)
+        return self.headers == b.headers and \
+                self.body == b.body and \
+                self.initiator == b.initiator and \
+                self.method == b.method
 
-    @property
-    def id (self):
-        return self.chromeRequest['requestId']
+class Response:
+    __slots__ = ('status', 'statusText', 'headers', 'body', 'bytesReceived',
+            'timestamp', 'mimeType')
 
-    @property
-    def encodedDataLength (self):
-        return self.chromeFinished['encodedDataLength']
+    def __init__ (self, status=None, statusText=None, headers=None, body=None, mimeType=None):
+        self.status = status
+        self.statusText = statusText
+        self.headers = headers
+        self.body = body
+        # bytes received over the network (not body size!)
+        self.bytesReceived = 0
+        self.timestamp = None
+        self.mimeType = mimeType
 
-    @property
-    def url (self):
-        return URL (self.response.get ('url', self.request.get ('url')))
+    def __repr__ (self):
+        return f'Response({self.status!r}, {self.statusText!r}, {self.headers!r}, {self.body!r}, {self.mimeType!r})'
 
-    @property
-    def requestHeaders (self):
-        # the response object may contain refined headers, which were
-        # *actually* sent over the wire
-        return self._unfoldHeaders (self.response.get ('requestHeaders', self.request['headers']))
+    def __eq__ (self, b):
+        if b is None:
+            return False
 
-    @property
-    def responseHeaders (self):
-        return self._unfoldHeaders (self.response['headers'])
+        if not isinstance (b, Response):
+            raise TypeError ('Can only compare equality with Response.')
 
-    @property
-    def statusText (self):
-        text = self.response.get ('statusText')
-        if text:
-            return text
-        text = BaseHTTPRequestHandler.responses.get (self.response['status'])
-        if text:
-            return text[0]
-        return 'No status text available'
+        # do not compare bytesReceived (depends on network), timestamp
+        # (depends on time) and statusText (does not matter)
+        return self.status == b.status and \
+                self.statusText == b.statusText and \
+                self.headers == b.headers and \
+                self.body == b.body and \
+                self.mimeType == b.mimeType
 
-    @property
-    def resourceType (self):
-        return self.chromeResponse.get ('type', self.chromeRequest.get ('type', None))
+class ReferenceTimestamp:
+    """ Map relative timestamp to absolute timestamp """
+
+    def __init__ (self, relative, absolute):
+        self.relative = timedelta (seconds=relative)
+        self.absolute = datetime.utcfromtimestamp (absolute)
+
+    def __call__ (self, relative):
+        if not isinstance (relative, timedelta):
+            relative = timedelta (seconds=relative)
+        return self.absolute + (relative-self.relative)
+
+class RequestResponsePair:
+    __slots__ = ('request', 'response', 'id', 'url', 'remoteIpAddress',
+            'protocol', 'resourceType', '_time')
+
+    def __init__ (self, id=None, url=None, request=None, response=None):
+        self.request = request
+        self.response = response
+        self.id = id
+        self.url = url
+        self.remoteIpAddress = None
+        self.protocol = None
+        self.resourceType = None
+        self._time = None
+
+    def __repr__ (self):
+        return f'RequestResponsePair({self.id!r}, {self.url!r}, {self.request!r}, {self.response!r})'
+
+    def __eq__ (self, b):
+        if not isinstance (b, RequestResponsePair):
+            raise TypeError (f'Can only compare with {self.__class__.__name__}')
+
+        # do not compare id and _time. These depend on external factors and do
+        # not influence the request/response *content*
+        return self.request == b.request and \
+                self.response == b.response and \
+                self.url == b.url and \
+                self.remoteIpAddress == b.remoteIpAddress and \
+                self.protocol == b.protocol and \
+                self.resourceType == b.resourceType
+
+    def fromRequestWillBeSent (self, req):
+        """ Set request data from Chrome Network.requestWillBeSent event """
+        r = req['request']
+
+        self.id = req['requestId']
+        self.url = URL (r['url'])
+        self.resourceType = req.get ('type')
+        self._time = ReferenceTimestamp (req['timestamp'], req['wallTime'])
+
+        assert self.request is None, req
+        self.request = Request ()
+        self.request.initiator = req['initiator']
+        self.request.headers = CIMultiDict (self._unfoldHeaders (r['headers']))
+        self.request.hasPostData = r.get ('hasPostData', False)
+        self.request.method = r['method']
+        self.request.timestamp = self._time (req['timestamp'])
+        if self.request.hasPostData:
+            postData = r.get ('postData')
+            if postData is not None:
+                self.request.body = UnicodeBody (postData)
+
+    def fromResponse (self, r, timestamp=None, resourceType=None):
+        """
+        Set response data from Chrome’s Response object.
+        
+        Request must exist. Updates if response was set before. Sometimes
+        fromResponseReceived is triggered twice by Chrome. No idea why.
+        """
+        assert self.request is not None, (self.request, r)
+
+        if not timestamp:
+            timestamp = self.request.timestamp
+
+        self.remoteIpAddress = r.get ('remoteIPAddress')
+        self.protocol = r.get ('protocol')
+        if resourceType:
+            self.resourceType = resourceType
+
+        # a response may contain updated request headers (i.e. those actually
+        # sent over the wire)
+        if 'requestHeaders' in r:
+            self.request.headers = CIMultiDict (self._unfoldHeaders (r['requestHeaders']))
+
+        self.response = Response ()
+        self.response.headers = CIMultiDict (self._unfoldHeaders (r['headers']))
+        self.response.status = r['status']
+        self.response.statusText = r['statusText']
+        self.response.timestamp = timestamp
+        self.response.mimeType = r['mimeType']
+
+    def fromResponseReceived (self, resp):
+        """ Set response data from Chrome Network.responseReceived """
+        return self.fromResponse (resp['response'],
+                self._time (resp['timestamp']), resp['type'])
+
+    def fromLoadingFinished (self, data):
+        self.response.bytesReceived = data['encodedDataLength']
+
+    def fromLoadingFailed (self, data):
+        self.response = None
 
     @staticmethod
     def _unfoldHeaders (headers):
@@ -110,44 +227,26 @@ class Item:
                 items.append ((k, v))
         return items
 
-    def setRequest (self, req):
-        self.chromeRequest = req
-
-    def setResponse (self, resp):
-        self.chromeResponse = resp
-
-    def setFinished (self, finished):
-        self.chromeFinished = finished
-
     async def prefetchRequestBody (self, tab):
-        # request body
-        req = self.request
-        postData = req.get ('postData')
-        if postData:
-            self.requestBody = postData.encode ('utf8'), False
-        elif req.get ('hasPostData', False):
+        if self.request.hasPostData and self.request.body is None:
             try:
                 postData = await tab.Network.getRequestPostData (requestId=self.id)
-                postData = postData['postData']
-                self.requestBody = b64decode (postData), True
+                self.request.body = UnicodeBody (postData['postData'])
             except TabException:
-                self.requestBody = None
+                self.request.body = None
         else:
-            self.requestBody = None, False
+            self.request.body = None
 
     async def prefetchResponseBody (self, tab):
-        # get response body
+        """ Fetch response body """
         try:
             body = await tab.Network.getResponseBody (requestId=self.id)
-            rawBody = body['body']
-            base64Encoded = body['base64Encoded']
-            if base64Encoded:
-                rawBody = b64decode (rawBody)
+            if body['base64Encoded']:
+                self.response.body = Base64Body (body['body'])
             else:
-                rawBody = rawBody.encode ('utf8')
-            self.body = rawBody, base64Encoded
+                self.response.body = UnicodeBody (body['body'])
         except TabException:
-            self.body = None
+            self.response.body = None
 
 class VarChangeEvent:
     """ Notify when variable is changed """
@@ -179,14 +278,14 @@ class SiteLoader:
     XXX: track popup windows/new tabs and close them
     """
 
-    __slots__ = ('requests', 'browser', 'url', 'logger', 'tab', '_iterRunning', 'idle', '_framesLoading')
+    __slots__ = ('requests', 'browser', 'logger', 'tab', '_iterRunning',
+            'idle', '_framesLoading')
     allowedSchemes = {'http', 'https'}
 
-    def __init__ (self, browser, url, logger):
+    def __init__ (self, browser, logger):
         self.requests = {}
         self.browser = Browser (url=browser)
-        self.url = url
-        self.logger = logger.bind (context=type (self).__name__, url=url)
+        self.logger = logger.bind (context=type (self).__name__)
         self._iterRunning = []
 
         self.idle = VarChangeEvent (True)
@@ -250,7 +349,7 @@ class SiteLoader:
                 result = t.result ()
                 if result is None:
                     pass
-                elif isinstance (result, Item):
+                elif isinstance (result, RequestResponsePair):
                     yield result
                 else:
                     method, data = result
@@ -263,8 +362,8 @@ class SiteLoader:
             running = pending
             self._iterRunning = running
 
-    async def start (self):
-        await self.tab.Page.navigate(url=self.url)
+    async def navigate (self, url):
+        await self.tab.Page.navigate(url=url)
 
     # internal chrome callbacks
     async def _requestWillBeSent (self, **kwargs):
@@ -282,21 +381,24 @@ class SiteLoader:
             # redirects never “finish” loading, but yield another requestWillBeSent with this key set
             redirectResp = kwargs.get ('redirectResponse')
             if redirectResp:
-                # create fake responses
-                resp = {'requestId': reqId, 'response': redirectResp, 'timestamp': kwargs['timestamp']}
-                item.setResponse (resp)
-                resp = {'requestId': reqId, 'encodedDataLength': 0, 'timestamp': kwargs['timestamp']}
-                item.setFinished (resp)
-                item.isRedirect = True
+                if item.url != url:
+                    # this happens for unknown reasons. the docs simply state
+                    # it can differ in case of a redirect. Fix it and move on.
+                    logger.warning ('redirect url differs',
+                            uuid='558a7df7-2258-4fe4-b16d-22b6019cc163',
+                            expected=item.url)
+                    redirectResp['url'] = str (item.url)
+                item.fromResponse (redirectResp)
                 logger.info ('redirect', uuid='85eaec41-e2a9-49c2-9445-6f19690278b8', target=url)
+                # XXX: queue this? no need to wait for it
                 await item.prefetchRequestBody (self.tab)
-                # cannot fetch request body due to race condition (item id reused)
+                # cannot fetch response body due to race condition (item id reused)
                 ret = item
             else:
                 logger.warning ('request exists', uuid='2c989142-ba00-4791-bb03-c2a14e91a56b')
 
-        item = Item ()
-        item.setRequest (kwargs)
+        item = RequestResponsePair ()
+        item.fromRequestWillBeSent (kwargs)
         self.requests[reqId] = item
         logger.debug ('request', uuid='55c17564-1bd0-4499-8724-fa7aad65478f')
 
@@ -315,7 +417,7 @@ class SiteLoader:
             logger.error ('url mismatch', uuid='7385f45f-0b06-4cbc-81f9-67bcd72ee7d0', respUrl=url)
         if url.scheme in self.allowedSchemes:
             logger.debug ('response', uuid='84461c4e-e8ef-4cbd-8e8e-e10a901c8bd0')
-            item.setResponse (kwargs)
+            item.fromResponseReceived (kwargs)
         else:
             logger.warning ('scheme forbidden', uuid='2ea6e5d7-dd3b-4881-b9de-156c1751c666')
 
@@ -333,19 +435,21 @@ class SiteLoader:
         logger = self.logger.bind (reqId=reqId, reqUrl=item.url)
         if item.url.scheme in self.allowedSchemes:
             logger.info ('finished', uuid='5a8b4bad-f86a-4fe6-a53e-8da4130d6a02')
-            item.setFinished (kwargs)
+            item.fromLoadingFinished (kwargs)
+            # XXX queue both
             await asyncio.gather (item.prefetchRequestBody (self.tab), item.prefetchResponseBody (self.tab))
             return item
 
     async def _loadingFailed (self, **kwargs):
         reqId = kwargs['requestId']
-        self.logger.warning ('loading failed',
+        logger = self.logger.bind (reqId=reqId)
+        logger.warning ('loading failed',
                 uuid='68410f13-6eea-453e-924e-c1af4601748b',
                 errorText=kwargs['errorText'],
                 blockedReason=kwargs.get ('blockedReason'))
         item = self.requests.pop (reqId, None)
         if item is not None:
-            item.failed = True
+            item.fromLoadingFailed (kwargs)
             return item
 
     async def _entryAdded (self, **kwargs):

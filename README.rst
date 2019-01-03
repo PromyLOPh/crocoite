@@ -24,6 +24,7 @@ These dependencies must be present to run crocoite:
 - warcio_
 - html5lib_
 - yarl_
+- multidict_
 - bottom_ (IRC client)
 - `Google Chrome`_
 
@@ -35,6 +36,7 @@ These dependencies must be present to run crocoite:
 .. _bottom: https://github.com/numberoverzero/bottom
 .. _Google Chrome: https://www.google.com/chrome/
 .. _yarl: https://yarl.readthedocs.io/
+.. _multidict: https://multidict.readthedocs.io/
 
 The following commands clone the repository from GitHub_, set up a virtual
 environment and install crocoite:
