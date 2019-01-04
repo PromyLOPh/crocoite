@@ -105,7 +105,7 @@ class PrintConsumer (Consumer):
         return kwargs
 
 class JsonPrintConsumer (Consumer):
-    def __init__ (self, minLevel=Level.DEBUG):
+    def __init__ (self, minLevel=Level.INFO):
         self.minLevel = minLevel
 
     def __call__ (self, **kwargs):
