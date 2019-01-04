@@ -95,17 +95,17 @@ class Behavior:
         """ After loading the page started """
         # this is a dirty hack to make this function an async generator
         return
-        yield
+        yield # pragma: no cover
 
     async def onstop (self):
         """ Before page loading is stopped """
         return
-        yield
+        yield # pragma: no cover
 
     async def onfinish (self):
         """ After the site has stopped loading """
         return
-        yield
+        yield # pragma: no cover
 
 class JsOnload (Behavior):
     """ Execute JavaScript on page load """
@@ -154,7 +154,7 @@ class JsOnload (Behavior):
         await tab.Runtime.callFunctionOn (functionDeclaration='function(){return this.stop();}', objectId=self.context)
         await tab.Runtime.releaseObject (objectId=self.context)
         return
-        yield
+        yield # pragma: no cover
 
 ### Generic scripts ###
 
@@ -191,7 +191,7 @@ class EmulateScreenMetrics (Behavior):
             await asyncio.sleep (1)
         await tab.Emulation.clearDeviceMetricsOverride ()
         return
-        yield
+        yield # pragma: no cover
 
 class DomSnapshotEvent:
     __slots__ = ('url', 'document', 'viewport')
@@ -337,7 +337,7 @@ class Crash (Behavior):
         except Crashed:
             pass
         return
-        yield
+        yield # pragma: no cover
 
 # available behavior scripts. Order matters, move those modifying the page
 # towards the end of available

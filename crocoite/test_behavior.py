@@ -69,7 +69,7 @@ class ClickTester (Behavior):
 #            assert any (map (lambda x: x['type'] == 'click', listeners)), listeners
 
         return
-        yield
+        yield # pragma: no cover
 
 @pytest.mark.parametrize("url,selector", clickParam)
 @pytest.mark.asyncio
