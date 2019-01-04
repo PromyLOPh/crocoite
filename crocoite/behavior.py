@@ -46,7 +46,7 @@ import yaml
 from .util import getFormattedViewportMetrics
 from . import html
 from .html import StripAttributeFilter, StripTagFilter, ChromeTreeWalker
-from .devtools import Crashed
+from .devtools import Crashed, TabException
 
 class Script:
     """ A JavaScript resource """
@@ -150,9 +150,19 @@ class JsOnload (Behavior):
 
     async def onstop (self):
         tab = self.loader.tab
-        assert self.context is not None
-        await tab.Runtime.callFunctionOn (functionDeclaration='function(){return this.stop();}', objectId=self.context)
-        await tab.Runtime.releaseObject (objectId=self.context)
+        try:
+            assert self.context is not None
+            await tab.Runtime.callFunctionOn (functionDeclaration='function(){return this.stop();}',
+                    objectId=self.context)
+            await tab.Runtime.releaseObject (objectId=self.context)
+        except TabException as e:
+            # cannot do anything about that. Ignoring should be fine.
+            self.logger.error ('jsonload onstop failed',
+                    uuid='1786726f-c8ec-4f79-8769-30954d4e32f5',
+                    exception=e.args,
+                    objectId=self.context,
+                    context=self.__class__.__name__)
+
         return
         yield # pragma: no cover
 
