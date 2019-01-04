@@ -20,14 +20,16 @@
 
 import asyncio, os, yaml, re
 from functools import partial
+
 import pytest
 from yarl import URL
+from aiohttp import web
 
 import pkg_resources
 from .logger import Logger
 from .devtools import Process
-from .behavior import Scroll, Behavior
-from .controller import SinglePageController
+from .behavior import Scroll, Behavior, ExtractLinks, ExtractLinksEvent
+from .controller import SinglePageController, EventHandler
 
 with pkg_resources.resource_stream (__name__, os.path.join ('data', 'click.yaml')) as fd:
     sites = list (yaml.load_all (fd))
@@ -95,4 +97,69 @@ async def test_click_match (match, url):
     """ Test urls must match """
     # keep this aligned with click.js
     assert re.match (match, url.host, re.I)
+
+class ExtractLinksCheck(EventHandler):
+    """ Test adapter that accumulates all incoming links from ExtractLinks """
+    __slots__ = ('links')
+
+    def __init__ (self):
+        super().__init__ ()
+        self.links = []
+
+    def push (self, item):
+        if isinstance (item, ExtractLinksEvent):
+            self.links.extend (item.links)
+
+@pytest.mark.asyncio
+async def test_extract_links ():
+    """
+    Make sure the CSS selector exists on an example url
+    """
+    async def f (req):
+        return web.Response (body="""<html><head></head>
+            <body>
+            <div>
+                <a href="/relative">foo</a>
+                <a href="http://example.com/absolute/">foo</a>
+                <a href="https://example.com/absolute/secure">foo</a>
+                <a href="#anchor">foo</a>
+
+                <a href="/hidden/visibility" style="visibility: hidden">foo</a>
+                <a href="/hidden/display" style="display: none">foo</a>
+                <div style="display: none">
+                <a href="/hidden/display/insidediv">foo</a>
+                </div>
+                <!--<a href="/hidden/comment">foo</a>-->
+
+                <p><img src="shapes.png" usemap="#shapes">
+                 <map name="shapes"><area shape=rect coords="50,50,100,100" href="/map/rect"></map></p>
+            </div>
+            </body></html>""", status=200, content_type='text/html', charset='utf-8')
+
+    url = URL.build (scheme='http', host='localhost', port=8080)
+
+    app = web.Application ()
+    app.router.add_route ('GET', '/', f)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, url.host, url.port)
+    await site.start()
+
+    try:
+        handler = ExtractLinksCheck ()
+        logger = Logger ()
+        controller = SinglePageController (url=url, logger=logger,
+                service=Process (), behavior=[ExtractLinks], handler=[handler])
+        await controller.run ()
+
+        assert sorted (handler.links) == sorted ([
+                url.with_path ('/relative'),
+                url.with_fragment ('anchor'),
+                URL ('http://example.com/absolute/'),
+                URL ('https://example.com/absolute/secure'),
+                url.with_path ('/hidden/visibility'), # XXX: shall we ignore these as well?
+                url.with_path ('/map/rect'),
+                ])
+    finally:
+        await runner.cleanup ()
 

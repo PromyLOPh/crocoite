@@ -25,12 +25,14 @@ function isClickable (o) {
 }
 /* --- end copy&paste */
 
-let x = document.body.querySelectorAll('a[href]');
 let ret = [];
-for (let i=0; i < x.length; i++) {
-	if (isClickable (x[i])) {
-		ret.push (x[i].href);
+['a[href]', 'area[href]'].forEach (function (s) {
+	let x = document.body.querySelectorAll(s);
+	for (let i=0; i < x.length; i++) {
+		if (isClickable (x[i])) {
+			ret.push (x[i].href);
+		}
 	}
-}
+});
 return ret; /* immediately return results, for use with Runtime.evaluate() */
 })();
