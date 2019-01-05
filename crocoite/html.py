@@ -122,8 +122,12 @@ class ChromeTreeWalker (TreeWalker):
             elif name == '#document':
                 for child in node.get ('children', []):
                     yield from self.recurse (child)
+            elif name == '#cdata-section':
+                # html5lib cannot generate cdata. text should be fine. This
+                # only happens when using Chrome’s inline XML display.
+                yield self.text (node['nodeValue'])
             else:
-                assert False, name
+                assert False, (name, node)
         else:
             default_namespace = constants.namespaces["html"]
 
