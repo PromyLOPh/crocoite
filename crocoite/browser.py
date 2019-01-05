@@ -234,8 +234,6 @@ class RequestResponsePair:
                 self.request.body = UnicodeBody (postData['postData'])
             except TabException:
                 self.request.body = None
-        else:
-            self.request.body = None
 
     async def prefetchResponseBody (self, tab):
         """ Fetch response body """
