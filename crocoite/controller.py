@@ -265,7 +265,7 @@ class PrefixLimit (RecursionPolicy):
         self.prefix = prefix
 
     def __call__ (self, urls):
-        return set (filter (lambda u: u.startswith (self.prefix), urls))
+        return set (filter (lambda u: str(u).startswith (str (self.prefix)), urls))
 
 class RecursiveController:
     """
