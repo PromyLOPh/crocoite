@@ -242,13 +242,8 @@ class WarcHandler (EventHandler):
             }
 
     def push (self, item):
-        processed = False
         for k, v in self.route.items ():
             if isinstance (item, k):
                 v (self, item)
-                processed = True
                 break
-
-        if not processed:
-            self.logger.debug (f'unknown event {item!r}')
 

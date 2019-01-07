@@ -32,7 +32,8 @@ from .controller import SinglePageController, \
         RecursiveController, DepthLimit, PrefixLimit
 from .devtools import Passthrough, Process
 from .warc import WarcHandler
-from .logger import Logger, JsonPrintConsumer, DatetimeConsumer, WarcHandlerConsumer
+from .logger import Logger, JsonPrintConsumer, DatetimeConsumer, \
+        WarcHandlerConsumer, Level
 from .devtools import Crashed
 
 class SingleExitStatus(IntEnum):

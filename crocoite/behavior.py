@@ -131,6 +131,8 @@ class JsOnload (Behavior):
         # parameter.
         # XXX: is there a better way to do this?
         result = await tab.Runtime.evaluate (expression=str (self.script))
+        self.logger.debug ('behavior onload inject',
+                uuid='a2da9b78-5648-44c5-bfa8-5c7573e13ad3', result=result)
         exception = result.get ('exceptionDetails', None)
         result = result['result']
         assert result['type'] == 'function', result
@@ -143,6 +145,8 @@ class JsOnload (Behavior):
                 functionDeclaration='function(options){return new this(options);}',
                 objectId=constructor,
                 arguments=[{'value': self.options}])
+        self.logger.debug ('behavior onload start',
+                uuid='6c0605ae-93b3-46b3-b575-ba45790909a7', result=result)
         result = result['result']
         assert result['type'] == 'object', result
         assert result.get ('subtype') != 'error', result
@@ -160,8 +164,7 @@ class JsOnload (Behavior):
             self.logger.error ('jsonload onstop failed',
                     uuid='1786726f-c8ec-4f79-8769-30954d4e32f5',
                     exception=e.args,
-                    objectId=self.context,
-                    context=self.__class__.__name__)
+                    objectId=self.context)
 
         return
         yield # pragma: no cover
@@ -238,6 +241,8 @@ class DomSnapshot (Behavior):
 
         viewport = await getFormattedViewportMetrics (tab)
         dom = await tab.DOM.getDocument (depth=-1, pierce=True)
+        self.logger.debug ('dom snapshot document',
+                uuid='0c720784-8bd1-4fdc-a811-84394d753539', dom=dom)
         haveUrls = set ()
         for doc in ChromeTreeWalker (dom['root']).split ():
             url = URL (doc['documentURL'])

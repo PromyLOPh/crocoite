@@ -361,10 +361,15 @@ class SiteLoader:
             self._iterRunning = running
 
     async def navigate (self, url):
-        await self.tab.Page.navigate(url=url)
+        ret = await self.tab.Page.navigate(url=url)
+        self.logger.debug ('navigate',
+                uuid='9d47ded2-951f-4e09-86ee-fd4151e20666', result=ret)
 
     # internal chrome callbacks
     async def _requestWillBeSent (self, **kwargs):
+        self.logger.debug ('requestWillBeSent',
+                uuid='b828d75a-650d-42d2-8c66-14f4547512da', args=kwargs)
+
         reqId = kwargs['requestId']
         req = kwargs['request']
         url = URL (req['url'])
@@ -398,11 +403,13 @@ class SiteLoader:
         item = RequestResponsePair ()
         item.fromRequestWillBeSent (kwargs)
         self.requests[reqId] = item
-        logger.debug ('request', uuid='55c17564-1bd0-4499-8724-fa7aad65478f')
 
         return ret
 
     async def _responseReceived (self, **kwargs):
+        self.logger.debug ('responseReceived',
+                uuid='ecd67e69-401a-41cb-b4ec-eeb1f1ec6abb', args=kwargs)
+
         reqId = kwargs['requestId']
         item = self.requests.get (reqId)
         if item is None:
@@ -414,7 +421,6 @@ class SiteLoader:
         if item.url != url:
             logger.error ('url mismatch', uuid='7385f45f-0b06-4cbc-81f9-67bcd72ee7d0', respUrl=url)
         if url.scheme in self.allowedSchemes:
-            logger.debug ('response', uuid='84461c4e-e8ef-4cbd-8e8e-e10a901c8bd0')
             item.fromResponseReceived (kwargs)
         else:
             logger.warning ('scheme forbidden', uuid='2ea6e5d7-dd3b-4881-b9de-156c1751c666')
@@ -424,27 +430,27 @@ class SiteLoader:
         Item was fully loaded. For some items the request body is not available
         when responseReceived is fired, thus move everything here.
         """
+        self.logger.debug ('loadingFinished',
+                uuid='35479405-a5b5-4395-8c33-d3601d1796b9', args=kwargs)
+
         reqId = kwargs['requestId']
         item = self.requests.pop (reqId, None)
         if item is None:
             # we never recorded this request (blacklisted scheme, for example)
             return
         req = item.request
-        logger = self.logger.bind (reqId=reqId, reqUrl=item.url)
         if item.url.scheme in self.allowedSchemes:
-            logger.info ('finished', uuid='5a8b4bad-f86a-4fe6-a53e-8da4130d6a02')
             item.fromLoadingFinished (kwargs)
             # XXX queue both
             await asyncio.gather (item.prefetchRequestBody (self.tab), item.prefetchResponseBody (self.tab))
             return item
 
     async def _loadingFailed (self, **kwargs):
+        self.logger.info ('loadingFailed',
+                uuid='35479405-a5b5-4395-8c33-d3601d1796b9', args=kwargs)
+
         reqId = kwargs['requestId']
         logger = self.logger.bind (reqId=reqId)
-        logger.warning ('loading failed',
-                uuid='68410f13-6eea-453e-924e-c1af4601748b',
-                errorText=kwargs['errorText'],
-                blockedReason=kwargs.get ('blockedReason'))
         item = self.requests.pop (reqId, None)
         if item is not None:
             item.fromLoadingFailed (kwargs)
@@ -477,10 +483,16 @@ class SiteLoader:
                     uuid='3ef7292e-8595-4e89-b834-0cc6bc40ee38', **kwargs)
 
     async def _frameStartedLoading (self, **kwargs):
+        self.logger.debug ('frameStartedLoading',
+                uuid='bbeb39c0-3304-4221-918e-f26bd443c566', args=kwargs)
+
         self._framesLoading.add (kwargs['frameId'])
         self.idle.set (False)
 
     async def _frameStoppedLoading (self, **kwargs):
+        self.logger.debug ('frameStoppedLoading',
+                uuid='fcbe8110-511c-4cbb-ac2b-f61a5782c5a0', args=kwargs)
+
         self._framesLoading.remove (kwargs['frameId'])
         if not self._framesLoading:
             self.idle.set (True)
