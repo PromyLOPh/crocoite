@@ -29,6 +29,7 @@ from multidict import CIMultiDict
 
 from hypothesis import given
 import hypothesis.strategies as st
+from hypothesis.provisional import domains
 import pytest
 
 from .browser import RequestResponsePair, SiteLoader, VarChangeEvent, Request, \
@@ -119,10 +120,6 @@ def test_referencetimestamp (relativeA, absoluteA, relativeB):
             (absoluteA >= absoluteB and relativeA >= relativeB)
     assert abs ((absoluteB - absoluteA).total_seconds () - (relativeB - relativeA)) < 10e-6
 
-def hostname ():
-    # XXX: find a better way to generate hostnames
-    return st.text (alphabet=st.sampled_from('abcdefghijklmnopqrstuvwxyz0123456789-'), min_size=1, max_size=253)
-
 def urls ():
     """ Build http/https URL """
     scheme = st.sampled_from (['http', 'https'])
@@ -130,7 +127,7 @@ def urls ():
     pathSt = st.builds (lambda x: '/' + x, st.text ())
     args = st.fixed_dictionaries ({
             'scheme': scheme,
-            'host': hostname (),
+            'host': domains (),
             'port': st.one_of (st.none (), st.integers (min_value=1, max_value=2**16-1)),
             'path': pathSt,
             'query_string': st.text (),
