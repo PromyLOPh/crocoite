@@ -105,12 +105,12 @@ class Job:
         stats = self.stats
         rstats = self.rstats
         return (f"{self.url} ({self.id}) {self.status.name}. "
-                "{rstats.get ('have', 0)} pages finished, "
-                "{rstats.get ('pending', 0)} pending; "
-                "{stats.get ('crashed', 0)} crashed, "
-                "{stats.get ('requests', 0)} requests, "
-                "{stats.get ('failed', 0)} failed, "
-                "{prettyBytes (stats.get ('bytesRcv', 0))} received.")
+                f"{rstats.get ('have', 0)} pages finished, "
+                f"{rstats.get ('pending', 0)} pending; "
+                f"{stats.get ('crashed', 0)} crashed, "
+                f"{stats.get ('requests', 0)} requests, "
+                f"{stats.get ('failed', 0)} failed, "
+                f"{prettyBytes (stats.get ('bytesRcv', 0))} received.")
 
 class NickMode(Enum):
     operator = '@'
