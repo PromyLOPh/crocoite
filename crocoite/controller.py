@@ -161,7 +161,9 @@ class SinglePageController:
             # wait until the browser has a) been idle for at least
             # settings.idleTimeout or b) settings.timeout is exceeded
             timeoutProc = asyncio.ensure_future (asyncio.sleep (self.settings.timeout))
-            idleTimeout = None
+            # the browser might have changed to idle from .navigate until here
+            # due to awaits inbetween. Thus, idleProc may never be triggered.
+            idleTimeout = None if not l.idle.get() else self.settings.idleTimeout
             while True:
                 idleProc = asyncio.ensure_future (l.idle.wait ())
                 try:
