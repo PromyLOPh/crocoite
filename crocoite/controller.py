@@ -349,6 +349,9 @@ class RecursiveController:
         except asyncio.CancelledError:
             # graceful cancellation
             process.send_signal (signal.SIGINT)
+        except Exception as e:
+            process.kill ()
+            raise e
         finally:
             code = await process.wait()
             if code == 0:
@@ -382,6 +385,9 @@ class RecursiveController:
                     done, pending = await asyncio.wait (self.running,
                             return_when=asyncio.FIRST_COMPLETED)
                     self.running.difference_update (done)
+                    # propagate exceptions
+                    for r in done:
+                        r.result ()
         except asyncio.CancelledError:
             self.logger.info ('cancel',
                     uuid='d58154c8-ec27-40f2-ab9e-e25c1b21cd88',
@@ -390,6 +396,9 @@ class RecursiveController:
         finally:
             done = await asyncio.gather (*self.running,
                     return_exceptions=True)
+            # propagate exceptions
+            for r in done:
+                r.result ()
             self.running = set ()
             log ()
 
