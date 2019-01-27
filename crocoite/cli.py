@@ -25,6 +25,11 @@ Command line interface
 import argparse, sys, signal, asyncio, os
 from enum import IntEnum
 from yarl import URL
+try:
+    import manhole
+    manhole.install (patch_fork=False, oneshot_on='USR1')
+except ModuleNotFoundError:
+    pass
 
 from . import behavior
 from .controller import SinglePageController, \

@@ -20,6 +20,9 @@ setup(
         'yarl',
         'multidict',
     ],
+    extras_require={
+        'manhole': ['manhole>=1.6'],
+    },
     entry_points={
     'console_scripts': [
             'crocoite-grab = crocoite.cli:single',
