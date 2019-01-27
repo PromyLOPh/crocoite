@@ -163,7 +163,7 @@ IRC bot
 
 A simple IRC bot (“chromebot”) is provided with the command ``crocoite-irc``.
 It reads its configuration from a config file like the example provided in
-``contrib/chromebot.ini`` and supports the following commands:
+``contrib/chromebot.json`` and supports the following commands:
 
 a <url> -j <concurrency> -r <policy>
     Archive <url> with <concurrency> processes according to recursion <policy>

@@ -1,0 +1,12 @@
+{
+  "irc": {
+    "host": "irc.example.com",
+    "port": 6667,
+    "ssl": false,
+    "nick": "chromebot",
+    "channels": ["#testchannel"]
+  },
+  "tempdir": "/path/to/tmp",
+  "destdir": "/path/to/warc",
+  "process_limit": 1
+}

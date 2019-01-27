@@ -132,30 +132,30 @@ def recursive ():
     return 0
 
 def irc ():
-    from configparser import ConfigParser
+    import json
     from .irc import Chromebot
 
     logger = Logger (consumer=[DatetimeConsumer (), JsonPrintConsumer ()])
 
     parser = argparse.ArgumentParser(description='IRC bot.')
-    parser.add_argument('--config', '-c', help='Config file location', metavar='PATH', default='chromebot.ini')
+    parser.add_argument('--config', '-c', help='Config file location', metavar='PATH', default='chromebot.json')
 
     args = parser.parse_args ()
 
-    config = ConfigParser ()
-    config.read (args.config)
+    with open (args.config) as fd:
+        config = json.load (fd)
     s = config['irc']
 
     loop = asyncio.get_event_loop()
     bot = Chromebot (
-            host=s.get ('host'),
-            port=s.getint ('port'),
-            ssl=s.getboolean ('ssl'),
-            nick=s.get ('nick'),
-            channels=[s.get ('channel')],
-            tempdir=s.get ('tempdir'),
-            destdir=s.get ('destdir'),
-            processLimit=s.getint ('process_limit'),
+            host=s['host'],
+            port=s['port'],
+            ssl=s['ssl'],
+            nick=s['nick'],
+            channels=s['channels'],
+            tempdir=config['tempdir'],
+            destdir=config['destdir'],
+            processLimit=config['process_limit'],
             logger=logger,
             loop=loop)
     stop = lambda signum: bot.cancel ()
