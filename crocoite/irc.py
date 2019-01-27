@@ -435,7 +435,7 @@ class Chromebot (ArgparseBot):
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.DEVNULL,
                         stdin=asyncio.subprocess.DEVNULL,
-                        start_new_session=True)
+                        start_new_session=True, limit=100*1024*1024)
                 while True:
                     data = await j.process.stdout.readline ()
                     if not data:
