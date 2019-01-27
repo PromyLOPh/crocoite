@@ -9,4 +9,7 @@
   "tempdir": "/path/to/tmp",
   "destdir": "/path/to/warc",
   "process_limit": 1
+  "blacklist": {
+    "^https?://(.+\\.)?local(host)?/": "Not acceptable"
+  }
 }

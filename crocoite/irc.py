@@ -368,11 +368,11 @@ def jobExists (func):
     return inner
 
 class Chromebot (ArgparseBot):
-    __slots__ = ('jobs', 'tempdir', 'destdir', 'processLimit')
+    __slots__ = ('jobs', 'tempdir', 'destdir', 'processLimit', 'blacklist')
 
     def __init__ (self, host, port, ssl, nick, logger, channels=[],
             tempdir=tempfile.gettempdir(), destdir='.', processLimit=1,
-            loop=None):
+            blacklist={}, loop=None):
         super().__init__ (host=host, port=port, ssl=ssl, nick=nick,
                 logger=logger, channels=channels, loop=loop)
 
@@ -380,6 +380,7 @@ class Chromebot (ArgparseBot):
         self.tempdir = tempdir
         self.destdir = destdir
         self.processLimit = asyncio.Semaphore (processLimit)
+        self.blacklist = blacklist
 
     def getParser (self):
         parser = NonExitingArgumentParser (prog=self.nick + ': ', add_help=False)
@@ -404,9 +405,20 @@ class Chromebot (ArgparseBot):
 
         return parser
 
+    def isBlacklisted (self, url):
+        for k, v in self.blacklist.items():
+            if k.match (url):
+                return v
+        return False
+
     @voice
     async def handleArchive (self, user, args, reply):
         """ Handle the archive command """
+
+        msg = self.isBlacklisted (args.url)
+        if msg:
+            reply (f'{args.url} cannot be queued: {msg}')
+            return
 
         j = Job (args.url, user.name)
         assert j.id not in self.jobs, 'duplicate job id'

@@ -132,7 +132,7 @@ def recursive ():
     return 0
 
 def irc ():
-    import json
+    import json, re
     from .irc import Chromebot
 
     logger = Logger (consumer=[DatetimeConsumer (), JsonPrintConsumer ()])
@@ -145,6 +145,7 @@ def irc ():
     with open (args.config) as fd:
         config = json.load (fd)
     s = config['irc']
+    blacklist = dict (map (lambda x: (re.compile (x[0], re.I), x[1]), config['blacklist'].items ()))
 
     loop = asyncio.get_event_loop()
     bot = Chromebot (
@@ -157,6 +158,7 @@ def irc ():
             destdir=config['destdir'],
             processLimit=config['process_limit'],
             logger=logger,
+            blacklist=blacklist,
             loop=loop)
     stop = lambda signum: bot.cancel ()
     loop.add_signal_handler (signal.SIGINT, stop, signal.SIGINT)
