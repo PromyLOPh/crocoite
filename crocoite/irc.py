@@ -321,7 +321,7 @@ class ArgparseBot (bottom.Client):
             except Exception as e:
                 reply (f'{e.args[1]} -- {e.args[0].format_usage ()}')
                 return
-            if not args:
+            if not args or not hasattr (args, 'func'):
                 reply (f'Sorry, I don’t understand {command}')
                 return
 
