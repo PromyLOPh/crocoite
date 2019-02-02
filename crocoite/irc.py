@@ -334,10 +334,14 @@ class ArgparseBot (bottom.Client):
     async def onDisconnect (self, **kwargs):
         """ Auto-reconnect """
         self.logger.info ('disconnect', uuid='4c74b2c8-2403-4921-879d-2279ad85db72')
-        if not self._quit.armed:
-            await asyncio.sleep (10, loop=self.loop)
-            self.logger.info ('reconnect', uuid='c53555cb-e1a4-4b69-b1c9-3320269c19d7')
-            await self.connect ()
+        while True:
+            if not self._quit.armed:
+                await asyncio.sleep (10, loop=self.loop)
+                self.logger.info ('reconnect', uuid='c53555cb-e1a4-4b69-b1c9-3320269c19d7')
+                try:
+                    await self.connect ()
+                finally:
+                    break
 
 def voice (func):
     """ Calling user must have voice or ops """
