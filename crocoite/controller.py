@@ -108,13 +108,13 @@ class SinglePageController:
 
     def __init__ (self, url, logger, \
             service, behavior=cbehavior.available, \
-            settings=defaultSettings, handler=[]):
+            settings=defaultSettings, handler=None):
         self.url = url
         self.service = service
         self.behavior = behavior
         self.settings = settings
         self.logger = logger.bind (context=type (self).__name__, url=url)
-        self.handler = handler
+        self.handler = handler or []
 
     def processItem (self, item):
         for h in self.handler:

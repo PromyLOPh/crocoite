@@ -124,9 +124,9 @@ class User:
     """ IRC user """
     __slots__ = ('name', 'modes')
 
-    def __init__ (self, name, modes=set ()):
+    def __init__ (self, name, modes=None):
         self.name = name
-        self.modes = modes
+        self.modes = modes or set ()
 
     def __eq__ (self, b):
         return self.name == b.name
@@ -198,9 +198,9 @@ class ArgparseBot (bottom.Client):
 
     __slots__ = ('channels', 'nick', 'parser', 'users', '_quit')
 
-    def __init__ (self, host, port, ssl, nick, logger, channels=[], loop=None):
+    def __init__ (self, host, port, ssl, nick, logger, channels=None, loop=None):
         super().__init__ (host=host, port=port, ssl=ssl, loop=loop)
-        self.channels = channels
+        self.channels = channels or []
         self.nick = nick
         # map channel -> nick -> user
         self.users = defaultdict (dict)
@@ -374,14 +374,14 @@ def jobExists (func):
 class Chromebot (ArgparseBot):
     __slots__ = ('jobs', 'tempdir', 'destdir', 'processLimit', 'blacklist')
 
-    def __init__ (self, host, port, ssl, nick, logger, channels=[],
-            tempdir=tempfile.gettempdir(), destdir='.', processLimit=1,
+    def __init__ (self, host, port, ssl, nick, logger, channels=None,
+            tempdir=None, destdir='.', processLimit=1,
             blacklist={}, loop=None):
         super().__init__ (host=host, port=port, ssl=ssl, nick=nick,
                 logger=logger, channels=channels, loop=loop)
 
         self.jobs = {}
-        self.tempdir = tempdir
+        self.tempdir = tempdir or tempfile.gettempdir()
         self.destdir = destdir
         self.processLimit = asyncio.Semaphore (processLimit)
         self.blacklist = blacklist
