@@ -258,7 +258,12 @@ class ArgparseBot (bottom.Client):
             # no need for NAMES here, server sends this automatically
 
     async def onNameReply (self, target, channel_type, channel, users, **kwargs):
-        self.users[channel] = dict (map (lambda x: (x.name, x), map (User.fromName, users)))
+        # channels may be too big for a single message
+        addusers = dict (map (lambda x: (x.name, x), map (User.fromName, users)))
+        if channel not in self.users:
+            self.users[channel] = addusers
+        else:
+            self.users[channel].update (addusers)
 
     @staticmethod
     def parseMode (mode):
