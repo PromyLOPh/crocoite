@@ -257,7 +257,7 @@ class ArgparseBot (bottom.Client):
             self.send ('JOIN', channel=c)
             # no need for NAMES here, server sends this automatically
 
-    async def onNameReply (self, target, channel_type, channel, users, **kwargs):
+    async def onNameReply (self, channel, users, **kwargs):
         # channels may be too big for a single message
         addusers = dict (map (lambda x: (x.name, x), map (User.fromName, users)))
         if channel not in self.users:
@@ -277,7 +277,7 @@ class ArgparseBot (bottom.Client):
                 ret.append ((action, c))
         return ret
 
-    async def onMode (self, nick, user, host, channel, modes, params, **kwargs):
+    async def onMode (self, channel, modes, params, **kwargs):
         if channel not in self.channels:
             return
 
@@ -293,7 +293,7 @@ class ArgparseBot (bottom.Client):
                 # unknown mode, ignore
                 pass
 
-    async def onPart (self, nick, user, host, message, channel, **kwargs):
+    async def onPart (self, nick, channel, **kwargs):
         if channel not in self.channels:
             return
 
