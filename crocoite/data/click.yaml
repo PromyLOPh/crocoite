@@ -50,6 +50,10 @@ selector:
   - description: expand comment thread
     selector: ytd-comment-thread-renderer div.more-button
     urls: ["https://www.youtube.com/watch?v=udtFqQuBFSc"]
+  - description: show more comment thread replies
+    selector: div.ytd-comment-replies-renderer > yt-next-continuation > paper-button
+    urls: ["https://www.youtube.com/watch?v=Lov0T3eXI2k"]
+    multi: True
 ---
 match: ^www\.patreon\.com$
 selector:
