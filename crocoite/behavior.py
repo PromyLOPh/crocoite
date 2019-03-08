@@ -311,7 +311,7 @@ class Click (JsOnload):
     def __init__ (self, loader, logger):
         super ().__init__ (loader, logger)
         with pkg_resources.resource_stream (__name__, os.path.join ('data', 'click.yaml')) as fd:
-            self.options['sites'] = list (yaml.load_all (fd))
+            self.options['sites'] = list (yaml.safe_load_all (fd))
 
 class ExtractLinksEvent:
     __slots__ = ('links', )

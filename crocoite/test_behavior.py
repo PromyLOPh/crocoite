@@ -32,7 +32,7 @@ from .behavior import Scroll, Behavior, ExtractLinks, ExtractLinksEvent
 from .controller import SinglePageController, EventHandler
 
 with pkg_resources.resource_stream (__name__, os.path.join ('data', 'click.yaml')) as fd:
-    sites = list (yaml.load_all (fd))
+    sites = list (yaml.safe_load_all (fd))
 clickParam = []
 for o in sites:
     for s in o['selector']:
