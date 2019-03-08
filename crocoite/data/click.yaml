@@ -2,13 +2,11 @@
 # Example URLs are random. Believe me.
 match: ^www\.facebook\.com$
 selector:
-  - description: show more comments
-    selector: a.UFIPagerLink[role=button]
+  - description: Show comments and replies/nested comments on user pages
+    selector: form[action="/ajax/ufi/modify.php"] a[data-testid^="UFI2CommentsPagerRenderer/pager_depth_"]
     urls: ["https://www.facebook.com/tagesschau"]
-  - description: show nested comments
-    selector: a.UFICommentLink[role=button]
   - description: initially show comments below a single post/video, i.e. /user/post/123
-    selector: form.commentable_item a[data-comment-prelude-ref=action_link_bling][rel=ignore]
+    selector: form[action="/ajax/ufi/modify.php"] a[data-testid="UFI2CommentsCount/root"]
     urls: ["https://www.facebook.com/tagesschau/posts/10157061068659407"]
   - description: close the “register now” nag screen. for better screen shots
     selector: a#expanding_cta_close_button[role=button]
@@ -45,7 +43,7 @@ selector:
   - description: load more comments
     selector: article div ul li button[type=button]
     multi: True
-    urls: ["https://www.instagram.com/p/BqvAm_XnmdJ/"]
+    urls: ["https://www.instagram.com/p/BuqGbgJHCCP/"]
 ---
 match: ^www\.youtube\.com$
 selector:
@@ -57,7 +55,7 @@ match: ^www\.patreon\.com$
 selector:
   - description: load more content
     # this selector is so long, because there are no stable css classes
-    selector: div.col-xs-12 > div > div > div > div[display="flex"] > div > button[tabindex="0"][color="tertiary"][type="button"]
+    selector: div[display="block"] > div > div > div[display="flex"] > div > button[tabindex="0"][type="button"]
     urls: ["https://www.patreon.com/nkjemisin"]
   - description: load more comments
     selector: div[display=flex] div[display=block] a[color="dark"][role="button"][tabindex="0"]
