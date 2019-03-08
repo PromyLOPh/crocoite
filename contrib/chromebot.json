@@ -11,5 +11,6 @@
   "process_limit": 1
   "blacklist": {
     "^https?://(.+\\.)?local(host)?/": "Not acceptable"
-  }
+  },
+  "need_voice": false
 }

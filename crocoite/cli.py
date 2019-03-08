@@ -164,6 +164,7 @@ def irc ():
             processLimit=config['process_limit'],
             logger=logger,
             blacklist=blacklist,
+            needVoice=config['need_voice'],
             loop=loop)
     stop = lambda signum: bot.cancel ()
     loop.add_signal_handler (signal.SIGINT, stop, signal.SIGINT)

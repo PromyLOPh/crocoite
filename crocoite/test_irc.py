@@ -19,7 +19,7 @@
 # THE SOFTWARE.
 
 import pytest
-from .irc import ArgparseBot, RefCountEvent
+from .irc import ArgparseBot, RefCountEvent, User, NickMode
 
 def test_mode_parse ():
     assert ArgparseBot.parseMode ('+a') == [('+', 'a')]
@@ -51,3 +51,20 @@ def test_refcountevent_arm_with (event):
         event.arm ()
         assert not event.event.is_set ()
     assert event.event.is_set ()
+
+def test_nick_mode ():
+    a = User.fromName ('a')
+    a2 = User.fromName ('a')
+    a3 = User.fromName ('+a')
+    b = User.fromName ('+b')
+    c = User.fromName ('@c')
+
+    # equality is based on name only, not mode
+    assert a == a2
+    assert a == a3
+    assert a != b
+
+    assert a.hasPriv (None) and not a.hasPriv (NickMode.voice) and not a.hasPriv (NickMode.operator)
+    assert b.hasPriv (None) and b.hasPriv (NickMode.voice) and not b.hasPriv (NickMode.operator)
+    assert c.hasPriv (None) and c.hasPriv (NickMode.voice) and c.hasPriv (NickMode.operator)
+

@@ -25,7 +25,7 @@ IRC bot “chromebot”
 import asyncio, argparse, uuid, json, tempfile
 from datetime import datetime
 from urllib.parse import urlsplit
-from enum import IntEnum, Enum
+from enum import IntEnum, unique
 from collections import defaultdict
 from abc import abstractmethod
 from functools import wraps
@@ -112,13 +112,24 @@ class Job:
                 f"{stats.get ('failed', 0)} failed, "
                 f"{prettyBytes (stats.get ('bytesRcv', 0))} received.")
 
-class NickMode(Enum):
-    operator = '@'
-    voice = '+'
+@unique
+class NickMode(IntEnum):
+    # the actual numbers don’t matter, but their order must be strictly
+    # increasing (with priviledge level)
+    operator = 100
+    voice = 10
 
     @classmethod
     def fromMode (cls, mode):
         return {'v': cls.voice, 'o': cls.operator}[mode]
+
+    @classmethod
+    def fromNickPrefix (cls, mode):
+        return {'@': cls.operator, '+': cls.voice}[mode]
+
+    @property
+    def human (self):
+        return {self.operator: 'operator', self.voice: 'voice'}[self]
 
 class User:
     """ IRC user """
@@ -137,13 +148,19 @@ class User:
     def __repr__ (self):
         return f'<User {self.name} {self.modes}>'
 
+    def hasPriv (self, p):
+        if p is None:
+            return True
+        else:
+            return self.modes and max (self.modes) >= p
+
     @classmethod
     def fromName (cls, name):
         """ Get mode and name from NAMES command """
         try:
-            modes = {NickMode(name[0])}
+            modes = {NickMode.fromNickPrefix (name[0])}
             name = name[1:]
-        except ValueError:
+        except KeyError:
             modes = set ()
         return cls (name, modes)
 
@@ -330,8 +347,11 @@ class ArgparseBot (bottom.Client):
                 reply (f'Sorry, I don’t understand {command}')
                 return
 
+            minPriv = getattr (args, 'minPriv', None)
             if self._quit.armed and not getattr (args, 'allowOnShutdown', False):
                 reply ('Sorry, I’m shutting down and cannot accept your request right now.')
+            elif not user.hasPriv (minPriv):
+                reply (f'Sorry, you need the privilege {minPriv.human} to use this command.')
             else:
                 with self._quit:
                     await args.func (user=user, args=args, reply=reply)
@@ -347,19 +367,6 @@ class ArgparseBot (bottom.Client):
                     await self.connect ()
                 finally:
                     break
-
-def voice (func):
-    """ Calling user must have voice or ops """
-    @wraps (func)
-    async def inner (self, *args, **kwargs):
-        user = kwargs.get ('user')
-        reply = kwargs.get ('reply')
-        if not user.modes.intersection ({NickMode.operator, NickMode.voice}):
-            reply ('Sorry, you must have voice to use this command.')
-        else:
-            ret = await func (self, *args, **kwargs)
-            return ret
-    return inner
 
 def jobExists (func):
     """ Chromebot job exists """
@@ -377,11 +384,13 @@ def jobExists (func):
     return inner
 
 class Chromebot (ArgparseBot):
-    __slots__ = ('jobs', 'tempdir', 'destdir', 'processLimit', 'blacklist')
+    __slots__ = ('jobs', 'tempdir', 'destdir', 'processLimit', 'blacklist', 'needVoice')
 
     def __init__ (self, host, port, ssl, nick, logger, channels=None,
             tempdir=None, destdir='.', processLimit=1,
-            blacklist={}, loop=None):
+            blacklist={}, needVoice=False, loop=None):
+        self.needVoice = needVoice
+
         super().__init__ (host=host, port=port, ssl=ssl, nick=nick,
                 logger=logger, channels=channels, loop=loop)
 
@@ -402,7 +411,8 @@ class Chromebot (ArgparseBot):
         archiveparser.add_argument('--concurrency', '-j', default=1, type=int, help='Parallel workers for this job', choices=range (1, 5))
         archiveparser.add_argument('--recursive', '-r', help='Enable recursion', choices=['0', '1', 'prefix'], default='0')
         archiveparser.add_argument('url', help='Website URL', type=isValidUrl, metavar='URL')
-        archiveparser.set_defaults (func=self.handleArchive)
+        archiveparser.set_defaults (func=self.handleArchive,
+                minPriv=NickMode.voice if self.needVoice else None)
 
         statusparser = subparsers.add_parser ('s', help='Get job status', add_help=False)
         statusparser.add_argument('id', help='Job id', metavar='UUID')
@@ -410,7 +420,8 @@ class Chromebot (ArgparseBot):
 
         abortparser = subparsers.add_parser ('r', help='Revoke/abort job', add_help=False)
         abortparser.add_argument('id', help='Job id', metavar='UUID')
-        abortparser.set_defaults (func=self.handleAbort, allowOnShutdown=True)
+        abortparser.set_defaults (func=self.handleAbort, allowOnShutdown=True,
+                minPriv=NickMode.voice if self.needVoice else None)
 
         return parser
 
@@ -420,7 +431,6 @@ class Chromebot (ArgparseBot):
                 return v
         return False
 
-    @voice
     async def handleArchive (self, user, args, reply):
         """ Handle the archive command """
 
@@ -496,7 +506,6 @@ class Chromebot (ArgparseBot):
         rstats = job.rstats
         reply (job.formatStatus ())
 
-    @voice
     @jobExists
     async def handleAbort (self, user, args, reply, job):
         """ Handle abort command """
