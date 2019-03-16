@@ -34,7 +34,7 @@ import pytest
 
 from .browser import RequestResponsePair, SiteLoader, VarChangeEvent, Request, \
         UnicodeBody, ReferenceTimestamp, Base64Body, UnicodeBody, Request, \
-        Response
+        Response, NavigateError
 from .logger import Logger, Consumer
 from .devtools import Crashed, Process
 
@@ -74,12 +74,8 @@ async def test_invalidurl (loader):
         resolved = await loop.getaddrinfo (host, None)
     except socket.gaierror:
         url = URL.build (scheme='http', host=host)
-        await loader.navigate (url)
-        async for it in loader:
-            assert it.request is not None
-            assert it.url == url
-            assert it.response is None
-            break
+        with pytest.raises (NavigateError):
+            await loader.navigate (url)
     else:
         pytest.skip (f'host {host} resolved to {resolved}')
 

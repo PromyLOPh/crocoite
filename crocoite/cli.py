@@ -32,7 +32,7 @@ try:
 except ModuleNotFoundError:
     pass
 
-from . import behavior
+from . import behavior, browser
 from .controller import SinglePageController, \
         ControllerSettings, StatsHandler, LogHandler, \
         RecursiveController, DepthLimit, PrefixLimit
@@ -47,6 +47,7 @@ class SingleExitStatus(IntEnum):
     Ok = 0
     Fail = 1
     BrowserCrash = 2
+    Navigate = 3
 
 def single ():
     parser = argparse.ArgumentParser(description='Save website to WARC using Google Chrome.')
@@ -90,6 +91,8 @@ def single ():
         except asyncio.CancelledError:
             # don’t log this one
             pass
+        except browser.NavigateError:
+            ret = SingleExitStatus.Navigate
         except Exception as e:
             ret = SingleExitStatus.Fail
             logger.error ('cli exception',

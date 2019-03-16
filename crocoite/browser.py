@@ -269,6 +269,9 @@ class VarChangeEvent:
         await self.event.wait ()
         return self._value
 
+class NavigateError (IOError):
+    pass
+
 class SiteLoader:
     """
     Load site in Chrome and monitor network requests
@@ -364,6 +367,8 @@ class SiteLoader:
         ret = await self.tab.Page.navigate(url=url)
         self.logger.debug ('navigate',
                 uuid='9d47ded2-951f-4e09-86ee-fd4151e20666', result=ret)
+        if 'errorText' in ret:
+            raise NavigateError (ret['errorText'])
 
     # internal chrome callbacks
     async def _requestWillBeSent (self, **kwargs):
