@@ -198,10 +198,14 @@ class EmulateScreenMetrics (Behavior):
         l = self.loader
         tab = l.tab
         for s in sizes:
+            self.logger.debug ('device override',
+                    uuid='3d2d8096-1a75-4830-ad79-ae5f6f97071d', **s)
             await tab.Emulation.setDeviceMetricsOverride (**s)
             # give the browser time to re-eval page and start requests
             # XXX: should wait until loader is not busy any more
             await asyncio.sleep (1)
+        self.logger.debug ('clear override',
+                uuid='f9401683-eb3a-4b86-9bb2-c8c5d876fc8d')
         await tab.Emulation.clearDeviceMetricsOverride ()
         return
         yield # pragma: no cover

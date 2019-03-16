@@ -23,6 +23,7 @@ Command line interface
 """
 
 import argparse, sys, signal, asyncio, os
+from traceback import TracebackException
 from enum import IntEnum
 from yarl import URL
 try:
@@ -86,6 +87,14 @@ def single ():
             ret = SingleExitStatus.Ok
         except Crashed:
             ret = SingleExitStatus.BrowserCrash
+        except asyncio.CancelledError:
+            # don’t log this one
+            pass
+        except Exception as e:
+            ret = SingleExitStatus.Fail
+            logger.error ('cli exception',
+                    uuid='7fd69858-ecaa-4225-b213-8ab880aa3cc5',
+                    traceback=list (TracebackException.from_exception (e).format ()))
         finally:
             r = handler[0].stats
             logger.info ('stats', context='cli', uuid='24d92d16-770e-4088-b769-4020e127a7ff', **r)

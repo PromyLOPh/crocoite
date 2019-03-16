@@ -22,8 +22,7 @@
 Controller classes, handling actions required for archival
 """
 
-import time
-import tempfile, asyncio, json, os
+import time, tempfile, asyncio, json, os
 from itertools import islice
 from datetime import datetime
 from operator import attrgetter
@@ -176,23 +175,32 @@ class SinglePageController:
 
                 if not finished:
                     # idle timeout
+                    logger.debug ('idle timeout',
+                            uuid='90702590-94c4-44ef-9b37-02a16de444c3')
                     idleProc.cancel ()
                     timeoutProc.cancel ()
                     break
                 elif handle in finished:
                     # something went wrong while processing the data
+                    logger.error ('fetch failed',
+                        uuid='43a0686a-a3a9-4214-9acd-43f6976f8ff3')
                     idleProc.cancel ()
                     timeoutProc.cancel ()
                     handle.result ()
                     assert False # previous line should always raise Exception
                 elif timeoutProc in finished:
                     # global timeout
+                    logger.debug ('global timeout',
+                            uuid='2f858adc-9448-4ace-94b4-7cd1484c0728')
                     idleProc.cancel ()
                     timeoutProc.result ()
                     break
                 elif idleProc in finished:
                     # idle state change
                     isIdle = idleProc.result ()
+                    logger.debug ('idle state',
+                            uuid='e3eaff79-7b56-4d17-aa42-d32fa1ec268b',
+                            idle=isIdle)
                     if isIdle:
                         # browser is idle, start the clock
                         idleTimeout = self.settings.idleTimeout
