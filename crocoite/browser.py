@@ -447,7 +447,7 @@ class SiteLoader:
 
     async def _loadingFailed (self, **kwargs):
         self.logger.info ('loadingFailed',
-                uuid='35479405-a5b5-4395-8c33-d3601d1796b9', args=kwargs)
+                uuid='4a944e85-5fae-4aa6-9e7c-e578b29392e4', args=kwargs)
 
         reqId = kwargs['requestId']
         logger = self.logger.bind (reqId=reqId)
