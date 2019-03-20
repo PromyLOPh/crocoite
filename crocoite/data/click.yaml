@@ -30,13 +30,21 @@ selector:
     selector: a.load-more__button
     multi: True
 ---
-match: ^(www|np)\.reddit\.com$
+# new layout
+match: ^www\.reddit\.com$
+selector:
+  - description: show more comments, reddit’s javascript ignores events if too frequent
+    selector: div[id^=moreComments-] > div > p
+    throttle: 500
+    urls: ["https://www.reddit.com/r/subredditcancer/comments/b2b80f/we_are_moderators_of_rwatchpeopledie_amaa_just/"]
+---
+# old layout
+match: ^(old|np)\.reddit\.com$
 selector:
   - description: show more comments, reddit’s javascript ignores events if too frequent
     selector: span.morecomments a
     throttle: 500
-    # disabled: No idea why it is not working. The selector is fine.
-    #urls: ["https://www.reddit.com/r/funny/comments/a21rxz/well_this_was_a_highlight_of_my_day/"]
+    urls: ["https://old.reddit.com/r/subredditcancer/comments/b2b80f/we_are_moderators_of_rwatchpeopledie_amaa_just/"]
 ---
 match: ^www\.instagram\.com$
 selector:
