@@ -28,8 +28,9 @@ from aiohttp import web
 import pkg_resources
 from .logger import Logger
 from .devtools import Process
-from .behavior import Scroll, Behavior, ExtractLinks, ExtractLinksEvent
+from .behavior import Scroll, Behavior, ExtractLinks, ExtractLinksEvent, Crash
 from .controller import SinglePageController, EventHandler
+from .devtools import Crashed
 
 with pkg_resources.resource_stream (__name__, os.path.join ('data', 'click.yaml')) as fd:
     sites = list (yaml.safe_load_all (fd))
@@ -110,13 +111,26 @@ class ExtractLinksCheck(EventHandler):
         if isinstance (item, ExtractLinksEvent):
             self.links.extend (item.links)
 
+async def simpleServer (url, response):
+    async def f (req):
+        return web.Response (body=response, status=200, content_type='text/html', charset='utf-8')
+
+    app = web.Application ()
+    app.router.add_route ('GET', url.path, f)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, url.host, url.port)
+    await site.start()
+    return runner
+
 @pytest.mark.asyncio
 async def test_extract_links ():
     """
     Make sure the CSS selector exists on an example url
     """
-    async def f (req):
-        return web.Response (body="""<html><head></head>
+
+    url = URL.build (scheme='http', host='localhost', port=8080)
+    runner = await simpleServer (url, """<html><head></head>
             <body>
             <div>
                 <a href="/relative">foo</a>
@@ -134,16 +148,7 @@ async def test_extract_links ():
                 <p><img src="shapes.png" usemap="#shapes">
                  <map name="shapes"><area shape=rect coords="50,50,100,100" href="/map/rect"></map></p>
             </div>
-            </body></html>""", status=200, content_type='text/html', charset='utf-8')
-
-    url = URL.build (scheme='http', host='localhost', port=8080)
-
-    app = web.Application ()
-    app.router.add_route ('GET', '/', f)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, url.host, url.port)
-    await site.start()
+            </body></html>""")
 
     try:
         handler = ExtractLinksCheck ()
@@ -160,6 +165,24 @@ async def test_extract_links ():
                 url.with_path ('/hidden/visibility'), # XXX: shall we ignore these as well?
                 url.with_path ('/map/rect'),
                 ])
+    finally:
+        await runner.cleanup ()
+
+@pytest.mark.asyncio
+async def test_crash ():
+    """
+    Crashing through Behavior works?
+    """
+
+    url = URL.build (scheme='http', host='localhost', port=8080)
+    runner = await simpleServer (url, '<html></html>')
+
+    try:
+        logger = Logger ()
+        controller = SinglePageController (url=url, logger=logger,
+                service=Process (), behavior=[Crash])
+        with pytest.raises (Crashed):
+            await controller.run ()
     finally:
         await runner.cleanup ()
 
