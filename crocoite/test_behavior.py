@@ -18,8 +18,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import asyncio, os, yaml, re
+import asyncio, os, yaml, re, math, struct
 from functools import partial
+from operator import attrgetter
 
 import pytest
 from yarl import URL
@@ -28,7 +29,8 @@ from aiohttp import web
 import pkg_resources
 from .logger import Logger
 from .devtools import Process
-from .behavior import Scroll, Behavior, ExtractLinks, ExtractLinksEvent, Crash
+from .behavior import Scroll, Behavior, ExtractLinks, ExtractLinksEvent, Crash, \
+        Screenshot, ScreenshotEvent
 from .controller import SinglePageController, EventHandler
 from .devtools import Crashed
 
@@ -99,17 +101,17 @@ async def test_click_match (match, url):
     # keep this aligned with click.js
     assert re.match (match, url.host, re.I)
 
-class ExtractLinksCheck(EventHandler):
-    """ Test adapter that accumulates all incoming links from ExtractLinks """
-    __slots__ = ('links')
+
+class AccumHandler (EventHandler):
+    """ Test adapter that accumulates all incoming items """
+    __slots__ = ('data')
 
     def __init__ (self):
         super().__init__ ()
-        self.links = []
+        self.data = []
 
     def push (self, item):
-        if isinstance (item, ExtractLinksEvent):
-            self.links.extend (item.links)
+        self.data.append (item)
 
 async def simpleServer (url, response):
     async def f (req):
@@ -151,13 +153,17 @@ async def test_extract_links ():
             </body></html>""")
 
     try:
-        handler = ExtractLinksCheck ()
+        handler = AccumHandler ()
         logger = Logger ()
         controller = SinglePageController (url=url, logger=logger,
                 service=Process (), behavior=[ExtractLinks], handler=[handler])
         await controller.run ()
 
-        assert sorted (handler.links) == sorted ([
+        links = []
+        for d in handler.data:
+            if isinstance (d, ExtractLinksEvent):
+                links.extend (d.links)
+        assert sorted (links) == sorted ([
                 url.with_path ('/relative'),
                 url.with_fragment ('anchor'),
                 URL ('http://example.com/absolute/'),
@@ -185,4 +191,38 @@ async def test_crash ():
             await controller.run ()
     finally:
         await runner.cleanup ()
+
+@pytest.mark.asyncio
+async def test_screenshot ():
+    """
+    Make sure screenshots are taken and have the correct dimensions. We can’t
+    and don’t want to check their content.
+    """
+    # ceil(0) == 0, so starting with 1
+    for expectHeight in (1, Screenshot.maxDim, Screenshot.maxDim+1, Screenshot.maxDim*2+Screenshot.maxDim//2):
+        url = URL.build (scheme='http', host='localhost', port=8080)
+        runner = await simpleServer (url, f'<html><body style="margin: 0; padding: 0;"><div style="height: {expectHeight}"></div></body></html>')
+
+        try:
+            handler = AccumHandler ()
+            logger = Logger ()
+            controller = SinglePageController (url=url, logger=logger,
+                    service=Process (), behavior=[Screenshot], handler=[handler])
+            await controller.run ()
+
+            screenshots = list (filter (lambda x: isinstance (x, ScreenshotEvent), handler.data))
+            assert len (screenshots) == math.ceil (expectHeight/Screenshot.maxDim)
+            totalHeight = 0
+            for s in screenshots:
+                assert s.url == url
+                # PNG ident is fixed, IHDR is always the first chunk
+                assert s.data.startswith (b'\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR')
+                width, height = struct.unpack ('>II', s.data[16:24])
+                assert height <= Screenshot.maxDim
+                totalHeight += height
+            # screenshot height is at least canvas height (XXX: get hardcoded
+            # value from devtools.Process)
+            assert totalHeight == max (expectHeight, 1080)
+        finally:
+            await runner.cleanup ()
 

@@ -281,6 +281,10 @@ class Screenshot (Behavior):
 
     name = 'screenshot'
 
+    # see https://github.com/GoogleChrome/puppeteer/blob/230be28b067b521f0577206899db01f0ca7fc0d2/examples/screenshots-longpage.js
+    # Hardcoded max texture size of 16,384 (crbug.com/770769)
+    maxDim = 16*1024
+
     async def onfinish (self):
         tab = self.loader.tab
 
@@ -291,16 +295,14 @@ class Screenshot (Behavior):
             self.logger.error ('frame without url', tree=tree)
             url = None
 
-        # see https://github.com/GoogleChrome/puppeteer/blob/230be28b067b521f0577206899db01f0ca7fc0d2/examples/screenshots-longpage.js
-        # Hardcoded max texture size of 16,384 (crbug.com/770769)
-        maxDim = 16*1024
+
         metrics = await tab.Page.getLayoutMetrics ()
         contentSize = metrics['contentSize']
-        width = min (contentSize['width'], maxDim)
+        width = min (contentSize['width'], self.maxDim)
         # we’re ignoring horizontal scroll intentionally. Most horizontal
         # layouts use JavaScript scrolling and don’t extend the viewport.
-        for yoff in range (0, contentSize['height'], maxDim):
-            height = min (contentSize['height'] - yoff, maxDim)
+        for yoff in range (0, contentSize['height'], self.maxDim):
+            height = min (contentSize['height'] - yoff, self.maxDim)
             clip = {'x': 0, 'y': yoff, 'width': width, 'height': height, 'scale': 1}
             ret = await tab.Page.captureScreenshot (format='png', clip=clip)
             data = b64decode (ret['data'])
@@ -322,6 +324,9 @@ class ExtractLinksEvent:
 
     def __init__ (self, links):
         self.links = links
+
+    def __repr__ (self):
+        return f'<ExtractLinksEvent {self.links!r}>'
 
 class ExtractLinks (Behavior):
     """
