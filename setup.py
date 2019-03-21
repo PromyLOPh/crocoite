@@ -37,6 +37,7 @@ setup(
     package_data={
             'crocoite': ['data/*'],
     },
-    setup_requires=["pytest-runner"],
+    setup_requires=['pytest-runner'],
     tests_require=["pytest", 'pytest-asyncio', 'pytest-cov', 'hypothesis'],
+    python_requires='>=3.6',
 )
