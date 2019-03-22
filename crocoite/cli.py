@@ -50,6 +50,19 @@ class SingleExitStatus(IntEnum):
     Navigate = 3
 
 def single ():
+    """
+    One-shot command line interface and pywb_ playback:
+
+    .. code:: bash
+
+        pip install pywb
+        crocoite-grab http://example.com/ example.com.warc.gz
+        rm -rf collections && wb-manager init test && wb-manager add test example.com.warc.gz
+        wayback &
+        $BROWSER http://localhost:8080
+
+    .. _pywb: https://github.com/ikreymer/pywb
+    """
     parser = argparse.ArgumentParser(description='Save website to WARC using Google Chrome.')
     parser.add_argument('--browser', help='DevTools URL', metavar='URL')
     parser.add_argument('--timeout', default=1*60*60, type=int, help='Maximum time for archival', metavar='SEC')
@@ -114,6 +127,24 @@ def parsePolicy (recursive, url):
     raise ValueError ('Unsupported')
 
 def recursive ():
+    """
+    crocoite is built with the Unix philosophy (“do one thing and do it well”) in
+    mind. Thus ``crocoite-grab`` can only save a single page. If you want recursion
+    use ``crocoite-recursive``, which follows hyperlinks according to ``--policy``.
+    It can either recurse a maximum number of levels or grab all pages with the
+    same prefix as the start URL:
+
+    .. code:: bash
+
+       crocoite-recursive --policy prefix http://www.example.com/dir/ output
+
+    will save all pages in ``/dir/`` and below to individual files in the output
+    directory ``output``. You can customize the command used to grab individual
+    pages by appending it after ``output``. This way distributed grabs (ssh to a
+    different machine and execute the job there, queue the command with Slurm, …)
+    are possible.
+    """
+
     logger = Logger (consumer=[DatetimeConsumer (), JsonPrintConsumer ()])
 
     parser = argparse.ArgumentParser(description='Recursively run crocoite-grab.')
@@ -149,6 +180,19 @@ def recursive ():
     return 0
 
 def irc ():
+    """
+    A simple IRC bot (“chromebot”) is provided with the command ``crocoite-irc``.
+    It reads its configuration from a config file like the example provided in
+    ``contrib/chromebot.json`` and supports the following commands:
+
+    a <url> -j <concurrency> -r <policy>
+        Archive <url> with <concurrency> processes according to recursion <policy>
+    s <uuid>
+        Get job status for <uuid>
+    r <uuid>
+        Revoke or abort running job with <uuid>
+    """
+
     import json, re
     from .irc import Chromebot
 
