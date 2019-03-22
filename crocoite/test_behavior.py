@@ -30,7 +30,7 @@ import pkg_resources
 from .logger import Logger
 from .devtools import Process
 from .behavior import Scroll, Behavior, ExtractLinks, ExtractLinksEvent, Crash, \
-        Screenshot, ScreenshotEvent
+        Screenshot, ScreenshotEvent, DomSnapshot, DomSnapshotEvent
 from .controller import SinglePageController, EventHandler
 from .devtools import Crashed
 
@@ -225,4 +225,30 @@ async def test_screenshot ():
             assert totalHeight == max (expectHeight, 1080)
         finally:
             await runner.cleanup ()
+
+@pytest.mark.asyncio
+async def test_dom_snapshot ():
+    """
+    Behavior plug-in works, <canvas> is replaced by static image, <script> is
+    stripped. Actual conversion from Chrome DOM to HTML is validated by module
+    .test_html
+    """
+
+    url = URL.build (scheme='http', host='localhost', port=8080)
+    runner = await simpleServer (url, f'<html><body><p>ÄÖÜäöü</p><script>alert("yes");</script><canvas id="canvas" width="1" height="1">Alternate text.</canvas></body></html>')
+
+    try:
+        handler = AccumHandler ()
+        logger = Logger ()
+        controller = SinglePageController (url=url, logger=logger,
+                service=Process (), behavior=[DomSnapshot], handler=[handler])
+        await controller.run ()
+
+        snapshots = list (filter (lambda x: isinstance (x, DomSnapshotEvent), handler.data))
+        assert len (snapshots) == 1
+        doc = snapshots[0].document
+        assert doc.startswith ('<HTML><HEAD><meta charset=utf-8></HEAD><BODY><P>ÄÖÜäöü</P><IMG id=canvas width=1 height=1 src="data:image/png;base64,'.encode ('utf-8'))
+        assert doc.endswith ('></BODY></HTML>'.encode ('utf-8'))
+    finally:
+        await runner.cleanup ()
 
