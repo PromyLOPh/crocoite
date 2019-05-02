@@ -101,4 +101,10 @@ selector:
     - description: Load more comments
       urls: ["http://www.gamasutra.com/blogs/RaminShokrizade/20130626/194933/The_Top_F2P_Monetization_Tricks.php"]
       selector: div#dynamiccomments div.viewTopCmts a
-
+---
+match: ^(www\.)?steamcommunity\.com$
+selector:
+    - description: Load more content
+      urls: ["https://steamcommunity.com/app/252950/reviews/?p=1&browsefilter=toprated&filterLanguage=all"]
+      selector: "#GetMoreContentBtn a"
+      multi: True
