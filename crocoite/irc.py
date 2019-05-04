@@ -32,6 +32,8 @@ from functools import wraps
 import bottom
 import websockets
 
+from .util import StrJsonEncoder
+
 ### helper functions ###
 def prettyTimeDelta (seconds):
     """
@@ -445,15 +447,25 @@ class Chromebot (ArgparseBot):
 
         logger = self.logger.bind (job=j.id)
 
-        cmdline = ['crocoite-recursive', args.url, '--tempdir', self.tempdir,
-                '--prefix', j.id + '-{host}-{date}-', '--policy',
-                args.recursive, '--concurrency', str (args.concurrency),
-                self.destdir]
-
         showargs = {
                 'recursive': args.recursive,
                 'concurrency': args.concurrency,
                 }
+        warcinfo = {'chromebot': {
+                'jobid': j.id,
+                'user': user.name,
+                'queued': j.started,
+                'url': args.url,
+                }}
+        warcinfo['chromebot'].update (showargs)
+        # prefix warcinfo with !, so it won’t get expanded
+        cmdline = ['crocoite-recursive', args.url, '--tempdir', self.tempdir,
+                '--prefix', j.id + '-{host}-{date}-', '--policy',
+                args.recursive, '--concurrency', str (args.concurrency),
+                self.destdir, '--', 'crocoite-grab', '--warcinfo',
+                '!' + json.dumps (warcinfo, cls=StrJsonEncoder), '{url}',
+                '{dest}']
+
         strargs = ', '.join (map (lambda x: '{}={}'.format (*x), showargs.items ()))
         reply (f'{args.url} has been queued as {j.id} with {strargs}')
         logger.info ('queue', user=user.name, url=args.url, cmdline=cmdline,

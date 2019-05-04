@@ -320,7 +320,11 @@ class RecursiveController:
         logger = self.logger.bind (url=url)
 
         def formatCommand (e):
-            return e.format (url=url, dest=dest.name)
+            # provide means to disable variable expansion
+            if e.startswith ('!'):
+                return e[1:]
+            else:
+                return e.format (url=url, dest=dest.name)
 
         def formatPrefix (p):
             return p.format (host=url.host, date=datetime.utcnow ().isoformat ())
