@@ -103,17 +103,20 @@ class SinglePageController:
     (stats, warc writer).
     """
 
-    __slots__ = ('url', 'service', 'behavior', 'settings', 'logger', 'handler')
+    __slots__ = ('url', 'service', 'behavior', 'settings', 'logger', 'handler',
+            'warcinfo')
 
     def __init__ (self, url, logger, \
             service, behavior=cbehavior.available, \
-            settings=defaultSettings, handler=None):
+            settings=defaultSettings, handler=None, \
+            warcinfo=None):
         self.url = url
         self.service = service
         self.behavior = behavior
         self.settings = settings
         self.logger = logger.bind (context=type (self).__name__, url=url)
         self.handler = handler or []
+        self.warcinfo = warcinfo
 
     def processItem (self, item):
         for h in self.handler:
@@ -150,6 +153,8 @@ class SinglePageController:
                         'behavior': list (map (attrgetter('name'), enabledBehavior)),
                         },
                     }
+            if self.warcinfo:
+                payload['extra'] = self.warcinfo
             self.processItem (ControllerStart (payload))
 
             await l.navigate (self.url)

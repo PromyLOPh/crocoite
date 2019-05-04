@@ -22,7 +22,7 @@
 Command line interface
 """
 
-import argparse, sys, signal, asyncio, os
+import argparse, sys, signal, asyncio, os, json
 from traceback import TracebackException
 from enum import IntEnum
 from yarl import URL
@@ -72,6 +72,8 @@ def single ():
             default=list (behavior.availableMap.keys ()),
             choices=list (behavior.availableMap.keys ()),
             metavar='NAME', nargs='*')
+    parser.add_argument('--warcinfo', help='Add extra information to warcinfo record',
+            metavar='JSON', type=json.loads)
     parser.add_argument('url', help='Website URL', type=URL, metavar='URL')
     parser.add_argument('output', help='WARC filename', metavar='FILE')
 
@@ -89,7 +91,8 @@ def single ():
         handler = [StatsHandler (), LogHandler (logger), warcHandler]
         b = list (map (lambda x: behavior.availableMap[x], args.enabledBehaviorNames))
         controller = SinglePageController (url=args.url, settings=settings,
-                service=service, handler=handler, behavior=b, logger=logger)
+                service=service, handler=handler, behavior=b, logger=logger,
+                warcinfo=args.warcinfo)
         try:
             loop = asyncio.get_event_loop()
             run = asyncio.ensure_future (controller.run ())
