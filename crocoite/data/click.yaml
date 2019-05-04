@@ -108,3 +108,15 @@ selector:
       urls: ["https://steamcommunity.com/app/252950/reviews/?p=1&browsefilter=toprated&filterLanguage=all"]
       selector: "#GetMoreContentBtn a"
       multi: True
+---
+match: ^imgur\.com$
+selector:
+    - description: Load more image of an album
+      urls: ["https://imgur.com/a/JG1yc"]
+      selector: div.js-post-truncated a.post-loadall
+    - description: Expand all comments (for snapshots)
+      urls: ["https://imgur.com/a/JG1yc"]
+      selector: div.comments-info span.comments-expand
+    - description: Show bad replies (for snapshots)
+      urls: ["https://imgur.com/gallery/0l6Yo4r"]
+      selector: div#comments div.bad-captions a.link
