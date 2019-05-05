@@ -22,7 +22,7 @@
 IRC bot “chromebot”
 """
 
-import asyncio, argparse, uuid, json, tempfile
+import asyncio, argparse, json, tempfile, time, random
 from datetime import datetime
 from urllib.parse import urlsplit
 from enum import IntEnum, unique
@@ -86,13 +86,45 @@ class Status(IntEnum):
     aborted = 3
     finished = 4
 
+# see https://arxiv.org/html/0901.4016 on how to build proquints (human
+# pronouncable unique ids)
+toConsonant = 'bdfghjklmnprstvz'
+toVowel = 'aiou'
+
+def u16ToQuint (v):
+    """ Transform a 16 bit unsigned integer into a single quint """
+    assert 0 <= v < 2**16
+    # quints are “big-endian”
+    return ''.join ([
+            toConsonant[(v>>(4+2+4+2))&0xf],
+            toVowel[(v>>(4+2+4))&0x3],
+            toConsonant[(v>>(4+2))&0xf],
+            toVowel[(v>>4)&0x3],
+            toConsonant[(v>>0)&0xf],
+            ])
+
+def uintToQuint (v, length=2):
+    """ Turn any integer into a proquint with fixed length """
+    assert 0 <= v < 2**(length*16)
+
+    return '-'.join (reversed ([u16ToQuint ((v>>(x*16))&0xffff) for x in range (length)]))
+
+def makeJobId ():
+    """ Create job id from time and randomness source """
+    # allocate 48 bits for the time (in milliseconds) and add 16 random bits
+    # at the end (just to be sure) for a total of 64 bits. Should be enough to
+    # avoid collisions.
+    randbits = 16
+    stamp = (int (time.time ()*1000) << randbits) | random.randint (0, 2**randbits-1)
+    return uintToQuint (stamp, 4)
+
 class Job:
     """ Archival job """
 
     __slots__ = ('id', 'stats', 'rstats', 'started', 'finished', 'nick', 'status', 'process', 'url')
 
     def __init__ (self, url, nick):
-        self.id = str (uuid.uuid4 ())
+        self.id = makeJobId ()
         self.stats = {}
         self.rstats = {}
         self.started = datetime.utcnow ()
@@ -441,8 +473,13 @@ class Chromebot (ArgparseBot):
             reply (f'{args.url} cannot be queued: {msg}')
             return
 
-        j = Job (args.url, user.name)
-        assert j.id not in self.jobs, 'duplicate job id'
+        # make sure the job id is unique. Since ids are time-based we can just
+        # wait.
+        while True:
+            j = Job (args.url, user.name)
+            if j.id not in self.jobs:
+                break
+            time.sleep (0.01)
         self.jobs[j.id] = j
 
         logger = self.logger.bind (job=j.id)
