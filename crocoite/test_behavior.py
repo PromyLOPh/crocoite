@@ -30,7 +30,7 @@ import pkg_resources
 from .logger import Logger
 from .devtools import Process
 from .behavior import Scroll, Behavior, ExtractLinks, ExtractLinksEvent, Crash, \
-        Screenshot, ScreenshotEvent, DomSnapshot, DomSnapshotEvent
+        Screenshot, ScreenshotEvent, DomSnapshot, DomSnapshotEvent, mapOrIgnore
 from .controller import SinglePageController, EventHandler
 from .devtools import Crashed
 
@@ -139,6 +139,7 @@ async def test_extract_links ():
                 <a href="http://example.com/absolute/">foo</a>
                 <a href="https://example.com/absolute/secure">foo</a>
                 <a href="#anchor">foo</a>
+                <a href="http://neue_preise_f%c3%bcr_zahnimplantate_k%c3%b6nnten_sie_%c3%bcberraschen">foo</a>
 
                 <a href="/hidden/visibility" style="visibility: hidden">foo</a>
                 <a href="/hidden/display" style="display: none">foo</a>
@@ -251,4 +252,12 @@ async def test_dom_snapshot ():
         assert doc.endswith ('></BODY></HTML>'.encode ('utf-8'))
     finally:
         await runner.cleanup ()
+
+def test_mapOrIgnore ():
+    def fail (x):
+        if x < 50:
+            raise Exception ()
+        return x+1
+
+    assert list (mapOrIgnore (fail, range (100))) == list (range (51, 101))
 

@@ -328,6 +328,13 @@ class ExtractLinksEvent:
     def __repr__ (self):
         return f'<ExtractLinksEvent {self.links!r}>'
 
+def mapOrIgnore (f, l):
+    for e in l:
+        try:
+            yield f (e)
+        except:
+            pass
+
 class ExtractLinks (Behavior):
     """
     Extract links from a page using JavaScript
@@ -348,7 +355,7 @@ class ExtractLinks (Behavior):
         tab = self.loader.tab
         yield self.script
         result = await tab.Runtime.evaluate (expression=str (self.script), returnByValue=True)
-        yield ExtractLinksEvent (list (set (map (URL, result['result']['value']))))
+        yield ExtractLinksEvent (list (set (mapOrIgnore (URL, result['result']['value']))))
 
 class Crash (Behavior):
     """ Crash the browser. For testing only. Obviously. """
