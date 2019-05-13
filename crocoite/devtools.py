@@ -323,7 +323,17 @@ class Process:
     async def __aexit__ (self, *exc):
         self.p.terminate ()
         await self.p.wait ()
-        shutil.rmtree (self.userDataDir)
+
+        # Try to delete the temporary directory multiple times. It looks like
+        # Chrome will change files in there even after it exited (i.e. .wait()
+        # returned). Very strange.
+        for i in range (5):
+            try:
+                shutil.rmtree (self.userDataDir)
+                break
+            except:
+                await asyncio.sleep (0.2)
+
         self.p = None
         return False
 
