@@ -34,5 +34,18 @@ let ret = [];
 		}
 	}
 });
+
+/* If Chrome loads plain-text documents it’ll wrap them into <pre>. Check those
+ * for links as well, assuming the whole line is a link (i.e. list of links). */
+let x = document.querySelectorAll ('body > pre');
+for (let i=0; i < x.length; i++) {
+	if (isVisible (x[i])) {
+		x[i].innerText.split ('\n').forEach (function (s) {
+			if (s.match ('^https?://')) {
+				ret.push (s);
+			}
+		});
+	}
+}
 return ret; /* immediately return results, for use with Runtime.evaluate() */
 })();
