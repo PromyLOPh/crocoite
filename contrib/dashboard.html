@@ -15,7 +15,7 @@
 		<h1 class="title">chromebot dashboard</h1>
 		<bot-status v-bind:jobs="jobs"></bot-status>
 		<div class="jobs">
-			<job-item v-for="j in jobs" v-bind:job="j" v-bind:jobs="jobs" v-bind:ignored="ignored" v-bind:key="j.id"></job-item>
+			<job-item v-for="j in jobs" v-bind:job="j" v-bind:jobs="jobs" v-bind:key="j.id"></job-item>
 		</div>
 		</section>
 		<script src="dashboard.js"></script>

@@ -35,19 +35,12 @@ class Job {
 }
 
 let jobs = {};
-/* list of ignored job ids, i.e. those the user deleted from the dashboard */
-let ignored = [];
 let ws = new WebSocket(socket);
 ws.onmessage = function (event) {
 	var msg = JSON.parse (event.data);
 	let msgdate = new Date (Date.parse (msg.date));
 	var j = undefined;
-	console.log (msg);
 	if (msg.job) {
-		if (ignored.includes (msg.job)) {
-			console.log ("job ignored", msg.job);
-			return;
-		}
 		j = jobs[msg.job];
 		if (j === undefined) {
 			j = new Job (msg.job, 'unknown', '<unknown>', new Date ());
@@ -91,14 +84,8 @@ ws.onerror = function (event) {
 };
 
 Vue.component('job-item', {
-  props: ['job', 'jobs', 'ignored'],
-  template: '<div class="job box" :id="job.id"><ul class="columns"><li class="jid column is-narrow"><a :href="\'#\' + job.id">{{ job.id }}</a></li><li class="url column"><a :href="job.url">{{ job.url }}</a></li><li class="status column is-narrow"><job-status v-bind:job="job"></job-status></li><li class="column is-narrow"><a class="delete" v-on:click="del(job.id)"></a></li></ul><job-stats v-bind:job="job"></job-stats></div>',
-  methods: {
-  	del: function (id) {
-		Vue.delete(this.jobs, id);
-		this.ignored.push (id);
-	}
-	}
+  props: ['job', 'jobs'],
+  template: '<div class="job box" :id="job.id"><ul class="columns"><li class="jid column is-narrow"><a :href="\'#\' + job.id">{{ job.id }}</a></li><li class="url column"><a :href="job.url">{{ job.url }}</a></li><li class="status column is-narrow"><job-status v-bind:job="job"></job-status></li></ul><job-stats v-bind:job="job"></job-stats></div>',
 });
 Vue.component('job-status', {
 	props: ['job'],
