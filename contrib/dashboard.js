@@ -1,5 +1,5 @@
 /* configuration */
-let socket = "ws://localhost:6789/",
+let socket = "wss://localhost:6789/",
 	urllogMax = 100;
 
 function formatSize (bytes) {
@@ -116,6 +116,21 @@ Vue.component('filesize', {
   props: ['value'],
   template: '<span class="filesize">{{ fvalue }}</span>',
   computed: { fvalue: function () { return formatSize (this.value); } }
+});
+Vue.component('bot-status', {
+	props: ['jobs'],
+	template: '<nav class="level"><div class="level-item has-text-centered"><div><p class="heading">Pending</p><p class="title">{{ stats.pending }}</p></div></div><div class="level-item has-text-centered"><div><p class="heading">Running</p><p class="title">{{ stats.running }}</p></div></div><div class="level-item has-text-centered"><div><p class="heading">Finished</p><p class="title">{{ stats.finished+stats.aborted }}</p></div></div><div class="level-item has-text-centered"><div><p class="heading">Transferred</p><p class="title"><filesize v-bind:value="stats.totalBytes"></filesize></p></div></div></nav>',
+	computed: {
+		stats: function () {
+			let s = {pending: 0, running: 0, finished: 0, aborted: 0, totalBytes: 0};
+			for (let k in this.jobs) {
+				let j = this.jobs[k];
+				s[j.status]++;
+				s.totalBytes += j.stats.bytesRcv;
+			}
+			return s;
+		}
+	}
 });
 
 let app = new Vue({

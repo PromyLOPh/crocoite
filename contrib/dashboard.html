@@ -4,7 +4,7 @@
 		<meta charset="utf-8">
 		 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
         <title>chromebot dashboard</title>
-		<!--<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>-->
+		<!--<script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>-->
 		<script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.min.js"></script>
 		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.7/css/bulma.min.css">
 		<link rel="stylesheet" href="dashboard.css">
@@ -13,6 +13,7 @@
 		<noscript>Please enable JavaScript.</noscript>
 		<section id="app" class="section">
 		<h1 class="title">chromebot dashboard</h1>
+		<bot-status v-bind:jobs="jobs"></bot-status>
 		<div class="jobs">
 			<job-item v-for="j in jobs" v-bind:job="j" v-bind:jobs="jobs" v-bind:ignored="ignored" v-bind:key="j.id"></job-item>
 		</div>
