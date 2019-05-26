@@ -120,3 +120,14 @@ selector:
     - description: Show bad replies (for snapshots)
       urls: ["https://imgur.com/gallery/0l6Yo4r"]
       selector: div#comments div.bad-captions a.link
+---
+match: ^(www\.)?vimeo\.com$
+selector:
+    - description: Load more videos on profile page
+      urls: ["https://vimeo.com/dsam4a"]
+      selector: div.profile_main div.profile-load-more__button--wrapper button.profile-load-more__button
+#    XXX: this works when using a non-headless browser, but does not otherwise
+#    - description: Expand video comments
+#      urls: ["https://vimeo.com/22439234"]
+#      selector: section#comments button.iris_comment-more
+#      multi: True
