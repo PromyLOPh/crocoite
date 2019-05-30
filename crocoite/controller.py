@@ -400,9 +400,11 @@ class RecursiveController:
 
     async def run (self):
         def log ():
+            # self.have includes running jobs
             self.logger.info ('recursing',
                     uuid='5b8498e4-868d-413c-a67e-004516b8452c',
-                    pending=len (self.pending), have=len (self.have),
+                    pending=len (self.pending),
+                    have=len (self.have)-len(self.running),
                     running=len (self.running))
 
         try:
@@ -428,7 +430,8 @@ class RecursiveController:
         except asyncio.CancelledError:
             self.logger.info ('cancel',
                     uuid='d58154c8-ec27-40f2-ab9e-e25c1b21cd88',
-                    pending=len (self.pending), have=len (self.have),
+                    pending=len (self.pending),
+                    have=len (self.have)-len (self.running),
                     running=len (self.running))
         finally:
             done = await asyncio.gather (*self.running,
