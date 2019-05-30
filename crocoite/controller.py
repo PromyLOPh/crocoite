@@ -233,6 +233,24 @@ class SinglePageController:
             else:
                 handle.cancel ()
 
+class SetEntry:
+    """ A object, to be used with sets, that compares equality only on its
+    primary property. """
+    def __init__ (self, value, **props):
+        self.value = value
+        for k, v in props.items ():
+            setattr (self, k, v)
+
+    def __eq__ (self, b):
+        assert isinstance (b, SetEntry)
+        return self.value == b.value
+
+    def __hash__ (self):
+        return hash (self.value)
+
+    def __repr__ (self):
+        return f'<SetEntry {self.value!r}>'
+
 class RecursionPolicy:
     """ Abstract recursion policy """
 
@@ -251,16 +269,14 @@ class DepthLimit (RecursionPolicy):
     __slots__ = ('maxdepth', )
 
     def __init__ (self, maxdepth=0):
-        if maxdepth < 0 or maxdepth > 1:
-            raise ValueError ('Unsupported')
         self.maxdepth = maxdepth
 
     def __call__ (self, urls):
-        if self.maxdepth <= 0:
-            return {}
-        else:
-            self.maxdepth -= 1
-            return urls
+        newurls = set ()
+        for u in urls:
+            if u.depth <= self.maxdepth:
+                newurls.add (u)
+        return newurls
 
     def __repr__ (self):
         return f'<DepthLimit {self.maxdepth}>'
@@ -280,7 +296,7 @@ class PrefixLimit (RecursionPolicy):
         self.prefix = prefix
 
     def __call__ (self, urls):
-        return set (filter (lambda u: str(u).startswith (str (self.prefix)), urls))
+        return set (filter (lambda u: str(u.value).startswith (str (self.prefix)), urls))
 
 class RecursiveController:
     """
@@ -310,13 +326,17 @@ class RecursiveController:
         # keep in sync with StatsHandler
         self.stats = {'requests': 0, 'finished': 0, 'failed': 0, 'bytesRcv': 0, 'crashed': 0, 'ignored': 0}
 
-    async def fetch (self, url):
+    async def fetch (self, entry):
         """
         Fetch a single URL using an external command
 
         command is usually crocoite-grab
         """
 
+        assert isinstance (entry, SetEntry)
+
+        url = entry.value
+        depth = entry.depth
         logger = self.logger.bind (url=url)
 
         def formatCommand (e):
@@ -356,7 +376,7 @@ class RecursiveController:
                 data = json.loads (data)
                 uuid = data.get ('uuid')
                 if uuid == '8ee5e9c9-1130-4c5c-88ff-718508546e0c':
-                    links = set (self.policy (map (lambda x: URL(x).with_fragment(None), data.get ('links', []))))
+                    links = set (self.policy (map (lambda x: SetEntry (URL(x).with_fragment(None), depth=depth+1), data.get ('links', []))))
                     links.difference_update (self.have)
                     self.pending.update (links)
                 elif uuid == '24d92d16-770e-4088-b769-4020e127a7ff':
@@ -387,7 +407,7 @@ class RecursiveController:
 
         try:
             self.have = set ()
-            self.pending = set ([self.url])
+            self.pending = set ([SetEntry (self.url, depth=0)])
 
             while self.pending:
                 # since pending is a set this picks a random item, which is fine

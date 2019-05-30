@@ -26,7 +26,7 @@ from aiohttp import web
 import pytest
 
 from .logger import Logger
-from .controller import ControllerSettings, SinglePageController
+from .controller import ControllerSettings, SinglePageController, SetEntry
 from .devtools import Process
 from .test_browser import loader
 
@@ -103,4 +103,17 @@ window.setInterval (function () { fetch('/').then (function (e) { console.log (e
         assert settings.idleTimeout <= after-before <= settings.idleTimeout*2+3
     finally:
         await runner.cleanup ()
+
+def test_set_entry ():
+    a = SetEntry (1, a=2, b=3)
+    assert a == a
+    assert hash (a) == hash (a)
+
+    b = SetEntry (1, a=2, b=4)
+    assert a == b
+    assert hash (a) == hash (b)
+
+    c = SetEntry (2, a=2, b=3)
+    assert a != c
+    assert hash (a) != hash (c)
 
