@@ -435,7 +435,8 @@ class RecursiveController:
                     return_exceptions=True)
             # propagate exceptions
             for r in done:
-                r.result ()
+                if isinstance (r, Exception):
+                    raise r
             self.running = set ()
             log ()
 
