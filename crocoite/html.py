@@ -107,6 +107,8 @@ eventAttributes = {'onabort',
         'onvolumechange',
         'onwaiting'}
 
+default_namespace = constants.namespaces["html"]
+
 class ChromeTreeWalker (TreeWalker):
     """
     Recursive html5lib TreeWalker for Google Chrome method DOM.getDocument
@@ -123,14 +125,13 @@ class ChromeTreeWalker (TreeWalker):
                 for child in node.get ('children', []):
                     yield from self.recurse (child)
             elif name == '#cdata-section':
-                # html5lib cannot generate cdata. text should be fine. This
-                # only happens when using Chrome’s inline XML display.
-                yield self.text (node['nodeValue'])
+                # html5lib cannot generate cdata, so we’re faking it by using
+                # an empty tag
+                yield from self.emptyTag (default_namespace,
+                        '![CDATA[' + node['nodeValue'] + ']]', {})
             else:
                 assert False, (name, node)
         else:
-            default_namespace = constants.namespaces["html"]
-
             attributes = node.get ('attributes', [])
             convertedAttr = {}
             for i in range (0, len (attributes), 2):

@@ -18,9 +18,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+import asyncio
 import pytest, html5lib
 from html5lib.serializer import HTMLSerializer
 from html5lib.treewalkers import getTreeWalker
+from aiohttp import web
 
 from .html import StripTagFilter, StripAttributeFilter, ChromeTreeWalker
 from .test_devtools import tab, browser
@@ -57,4 +59,38 @@ async def test_treewalker (tab):
             assert result == html
         elif i == 1:
             assert result == framehtml
+
+cdataDoc = '<test><![CDATA[Hello world]]></test>'
+xmlHeader = '<?xml version="1.0" encoding="UTF-8"?>'
+async def hello(request):
+    return web.Response(text=xmlHeader + cdataDoc, content_type='text/xml')
+
+@pytest.fixture
+async def server ():
+    """ Simple HTTP server for testing notifications """
+    app = web.Application()
+    app.add_routes([web.get('/test.xml', hello)])
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, 'localhost', 8080)
+    await site.start()
+    yield app
+    await runner.cleanup ()
+
+@pytest.mark.asyncio
+async def test_treewalker_cdata (tab, server):
+    ret = await tab.Page.navigate (url='http://localhost:8080/test.xml')
+    # wait until loaded XXX: replace with idle check
+    await asyncio.sleep (0.5)
+    dom = await tab.DOM.getDocument (depth=-1, pierce=True)
+    docs = list (ChromeTreeWalker (dom['root']).split ())
+    assert len(docs) == 1
+    for i, doc in enumerate (docs):
+        walker = ChromeTreeWalker (doc)
+        serializer = HTMLSerializer ()
+        result = serializer.render (iter(walker))
+        # chrome will display a pretty-printed viewer *plus* the original
+        # source (stripped of its xml header)
+        assert cdataDoc in result
+
 
