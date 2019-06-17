@@ -39,8 +39,9 @@ async def tab (browser):
         # make sure there are no transactions left over (i.e. no unawaited requests)
         assert not tab.transactions
 
+docBody = "<html><body><p>Hello, world</p></body></html>"
 async def hello(request):
-    return web.Response(text="Hello, world")
+    return web.Response(text=docBody, content_type='text/html')
 
 @pytest.fixture
 async def server ():
@@ -112,14 +113,28 @@ async def test_tab_crash (tab):
 async def test_load (tab, server):
     await tab.Network.enable ()
     await tab.Page.navigate (url='http://localhost:8080')
+
     method, req = await tab.get ()
     assert method == tab.Network.requestWillBeSent
+
     method, resp = await tab.get ()
     assert method == tab.Network.responseReceived
-    assert tab.pending == 0
+    assert resp['requestId'] == req['requestId']
+
+    method, dataRecv = await tab.get ()
+    assert method == tab.Network.dataReceived
+    assert dataRecv['dataLength'] == len (docBody)
+    assert dataRecv['requestId'] == req['requestId']
+
+    method, finish = await tab.get ()
+    assert method == tab.Network.loadingFinished
+    assert finish['requestId'] == req['requestId']
+
     body = await tab.Network.getResponseBody (requestId=req['requestId'])
-    assert body['body'] == "Hello, world"
+    assert body['body'] == docBody
+
     await tab.Network.disable ()
+    assert tab.pending == 0
 
 @pytest.mark.asyncio
 async def test_recv_failure(browser):
