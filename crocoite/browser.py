@@ -252,11 +252,21 @@ class NavigateError (IOError):
 class PageIdle:
     """ Page idle event """
 
+    __slots__ = ('idle', )
+
     def __init__ (self, idle):
         self.idle = idle
 
     def __bool__ (self):
         return self.idle
+
+class FrameNavigated:
+    __slots__ = ('id', 'url', 'mimeType')
+
+    def __init__ (self, id, url, mimeType):
+        self.id = id
+        self.url = URL (url)
+        self.mimeType = mimeType
 
 class SiteLoader:
     """
@@ -266,7 +276,7 @@ class SiteLoader:
     """
 
     __slots__ = ('requests', 'browser', 'logger', 'tab', '_iterRunning',
-            '_framesLoading')
+            '_framesLoading', '_rootFrame')
     allowedSchemes = {'http', 'https'}
 
     def __init__ (self, browser, logger):
@@ -276,6 +286,7 @@ class SiteLoader:
         self._iterRunning = []
 
         self._framesLoading = set ()
+        self._rootFrame = None
 
     async def __aenter__ (self):
         tab = self.tab = await self.browser.__aenter__ ()
@@ -317,6 +328,7 @@ class SiteLoader:
                 tab.Page.javascriptDialogOpening: self._javascriptDialogOpening,
                 tab.Page.frameStartedLoading: self._frameStartedLoading,
                 tab.Page.frameStoppedLoading: self._frameStoppedLoading,
+                tab.Page.frameNavigated: self._frameNavigated,
                 }
 
         # The implementation is a little advanced. Why? The goal here is to
@@ -356,6 +368,7 @@ class SiteLoader:
                 uuid='9d47ded2-951f-4e09-86ee-fd4151e20666', result=ret)
         if 'errorText' in ret:
             raise NavigateError (ret['errorText'])
+        self._rootFrame = ret['frameId']
 
     # internal chrome callbacks
     async def _requestWillBeSent (self, **kwargs):
@@ -488,4 +501,12 @@ class SiteLoader:
         self._framesLoading.remove (kwargs['frameId'])
         if not self._framesLoading:
             return PageIdle (True)
+
+    async def _frameNavigated (self, **kwargs):
+        self.logger.debug ('frameNavigated',
+                uuid='0e876f7d-7129-4612-8632-686f42ac6e1f', args=kwargs)
+        frame = kwargs['frame']
+        if self._rootFrame == frame['id']:
+            assert frame.get ('parentId', None) is None, "root frame must not have a parent"
+            return FrameNavigated (frame['id'], frame['url'], frame['mimeType'])
 

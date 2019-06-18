@@ -110,7 +110,7 @@ class AccumHandler (EventHandler):
         super().__init__ ()
         self.data = []
 
-    def push (self, item):
+    async def push (self, item):
         self.data.append (item)
 
 async def simpleServer (url, response):

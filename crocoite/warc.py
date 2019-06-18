@@ -241,7 +241,7 @@ class WarcHandler (EventHandler):
             ControllerStart: _writeControllerStart,
             }
 
-    def push (self, item):
+    async def push (self, item):
         for k, v in self.route.items ():
             if isinstance (item, k):
                 v (self, item)

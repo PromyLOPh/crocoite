@@ -84,8 +84,9 @@ def event ():
             requestResponsePair (),
             )
 
+@pytest.mark.asyncio
 @given (st.lists (event ()))
-def test_push (golden):
+async def test_push (golden):
     def checkWarcinfoId (headers):
         if lastWarcinfoRecordid is not None:
             assert headers['WARC-Warcinfo-ID'] == lastWarcinfoRecordid
@@ -97,7 +98,7 @@ def test_push (golden):
     with open('/tmp/test.warc.gz', 'w+b') as fd:
         with WarcHandler (fd, logger) as handler:
             for g in golden:
-                handler.push (g)
+                await handler.push (g)
 
         fd.seek (0)
         it = iter (ArchiveIterator (fd))

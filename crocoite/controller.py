@@ -26,10 +26,11 @@ import time, tempfile, asyncio, json, os
 from itertools import islice
 from datetime import datetime
 from operator import attrgetter
+from abc import ABC, abstractmethod
 from yarl import URL
 
 from . import behavior as cbehavior
-from .browser import SiteLoader, RequestResponsePair, PageIdle
+from .browser import SiteLoader, RequestResponsePair, PageIdle, FrameNavigated
 from .util import getFormattedViewportMetrics, getSoftwareInfo
 from .behavior import ExtractLinksEvent
 
@@ -45,12 +46,13 @@ class ControllerSettings:
 
 defaultSettings = ControllerSettings ()
 
-class EventHandler:
+class EventHandler (ABC):
     """ Abstract base class for event handler """
 
     __slots__ = ()
 
-    def push (self, item):
+    @abstractmethod
+    async def push (self, item):
         raise NotImplementedError ()
 
 class StatsHandler (EventHandler):
@@ -59,7 +61,7 @@ class StatsHandler (EventHandler):
     def __init__ (self):
         self.stats = {'requests': 0, 'finished': 0, 'failed': 0, 'bytesRcv': 0}
 
-    def push (self, item):
+    async def push (self, item):
         if isinstance (item, RequestResponsePair):
             self.stats['requests'] += 1
             if not item.response:
@@ -76,7 +78,7 @@ class LogHandler (EventHandler):
     def __init__ (self, logger):
         self.logger = logger.bind (context=type (self).__name__)
 
-    def push (self, item):
+    async def push (self, item):
         if isinstance (item, ExtractLinksEvent):
             # limit number of links per message, so json blob won’t get too big
             it = iter (item.links)
@@ -106,7 +108,7 @@ class IdleStateTracker (EventHandler):
 
         self._idleSince = self._loop.time ()
 
-    def push (self, item):
+    async def push (self, item):
         if isinstance (item, PageIdle):
             self._idle = bool (item)
             if self._idle:
@@ -129,6 +131,37 @@ class IdleStateTracker (EventHandler):
                 sleep = timeout
             await asyncio.sleep (sleep)
 
+class InjectBehaviorOnload (EventHandler):
+    """ Control behavior script injection based on frame navigation messages.
+    When a page is reloaded (for whatever reason), the scripts need to be
+    reinjected. """
+
+    __slots__ = ('controller', '_loaded')
+
+    def __init__ (self, controller):
+        self.controller = controller
+        self._loaded = False
+
+    async def push (self, item):
+        if isinstance (item, FrameNavigated):
+            await self._runon ('load')
+            self._loaded = True
+
+    async def stop (self):
+        if self._loaded:
+            await self._runon ('stop')
+
+    async def finish (self):
+        if self._loaded:
+            await self._runon ('finish')
+
+    async def _runon (self, method):
+        controller = self.controller
+        for b in controller._enabledBehavior:
+            f = getattr (b, 'on' + method)
+            async for item in f ():
+                await controller.processItem (item)
+
 class SinglePageController:
     """
     Archive a single page url.
@@ -138,7 +171,7 @@ class SinglePageController:
     """
 
     __slots__ = ('url', 'service', 'behavior', 'settings', 'logger', 'handler',
-            'warcinfo')
+            'warcinfo', '_enabledBehavior')
 
     def __init__ (self, url, logger, \
             service, behavior=cbehavior.available, \
@@ -152,25 +185,27 @@ class SinglePageController:
         self.handler = handler or []
         self.warcinfo = warcinfo
 
-    def processItem (self, item):
+    async def processItem (self, item):
         for h in self.handler:
-            h.push (item)
+            await h.push (item)
 
     async def run (self):
         logger = self.logger
         async def processQueue ():
             async for item in l:
-                self.processItem (item)
+                await self.processItem (item)
 
         idle = IdleStateTracker (asyncio.get_event_loop ())
         self.handler.append (idle)
+        behavior = InjectBehaviorOnload (self)
+        self.handler.append (behavior)
 
         async with self.service as browser, SiteLoader (browser, logger=logger) as l:
             handle = asyncio.ensure_future (processQueue ())
             timeoutProc = asyncio.ensure_future (asyncio.sleep (self.settings.timeout))
 
             # not all behavior scripts are allowed for every URL, filter them
-            enabledBehavior = list (filter (lambda x: self.url in x,
+            self._enabledBehavior = list (filter (lambda x: self.url in x,
                     map (lambda x: x (l, logger), self.behavior)))
 
             version = await l.tab.Browser.getVersion ()
@@ -186,17 +221,14 @@ class SinglePageController:
                         'url': self.url,
                         'idleTimeout': self.settings.idleTimeout,
                         'timeout': self.settings.timeout,
-                        'behavior': list (map (attrgetter('name'), enabledBehavior)),
+                        'behavior': list (map (attrgetter('name'), self._enabledBehavior)),
                         },
                     }
             if self.warcinfo:
                 payload['extra'] = self.warcinfo
-            self.processItem (ControllerStart (payload))
+            await self.processItem (ControllerStart (payload))
 
             await l.navigate (self.url)
-            for b in enabledBehavior:
-                async for item in b.onload ():
-                    self.processItem (item)
 
             idleProc = asyncio.ensure_future (idle.wait (self.settings.idleTimeout))
             while True:
@@ -231,16 +263,10 @@ class SinglePageController:
                     timeoutProc.cancel ()
                     break
 
-            for b in enabledBehavior:
-                async for item in b.onstop ():
-                    self.processItem (item)
+            await behavior.stop ()
             await l.tab.Page.stopLoading ()
-
             await asyncio.sleep (1)
-
-            for b in enabledBehavior:
-                async for item in b.onfinish ():
-                    self.processItem (item)
+            await behavior.finish ()
 
             # wait until loads from behavior scripts are done and browser is
             # idle for at least 1 second

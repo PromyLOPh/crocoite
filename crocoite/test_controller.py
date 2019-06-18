@@ -130,11 +130,11 @@ async def test_idle_state_tracker ():
     assert idle._idle
 
     # idle change
-    idle.push (PageIdle (False))
+    await idle.push (PageIdle (False))
     assert not idle._idle
 
     # nothing happens for other objects
-    idle.push ({})
+    await idle.push ({})
     assert not idle._idle
 
     # no state change -> wait does not return
@@ -144,7 +144,7 @@ async def test_idle_state_tracker ():
     # wait at least timeout
     delta = 0.2
     timeout = 1
-    idle.push (PageIdle (True))
+    await idle.push (PageIdle (True))
     assert idle._idle
     start = loop.time ()
     await idle.wait (timeout)

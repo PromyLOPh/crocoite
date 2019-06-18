@@ -34,7 +34,7 @@ import pytest
 
 from .browser import RequestResponsePair, SiteLoader, Request, \
         UnicodeBody, ReferenceTimestamp, Base64Body, UnicodeBody, Request, \
-        Response, NavigateError, PageIdle
+        Response, NavigateError, PageIdle, FrameNavigated
 from .logger import Logger, Consumer
 from .devtools import Crashed, Process
 
@@ -336,33 +336,47 @@ async def test_integration_item (loader, golden):
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, serverUrl.host, serverUrl.port)
-    await site.start()
+    try:
+        await site.start()
+    except Exception as e:
+        pytest.skip (e)
 
+    haveReqResp = False
+    haveNavigated = False
     try:
         await loader.navigate (golden.url)
 
         it = loader.__aiter__ ()
         while True:
-            item = await it.__anext__ ()
-            if isinstance (item, RequestResponsePair):
+            try:
+                item = await asyncio.wait_for (it.__anext__ (), timeout=1)
+            except asyncio.TimeoutError:
                 break
+            # XXX: can only check the first req/resp right now (due to redirect)
+            if isinstance (item, RequestResponsePair) and not haveReqResp:
+                # we do not know this in advance
+                item.request.initiator = None
+                item.request.headers = None
+                item.remoteIpAddress = None
+                item.protocol = None
+                item.resourceType = None
 
-        # we do not know this in advance
-        item.request.initiator = None
-        item.request.headers = None
-        item.remoteIpAddress = None
-        item.protocol = None
-        item.resourceType = None
+                if item.response:
+                    assert item.response.statusText is not None
+                    item.response.statusText = None
 
-        if item.response:
-            assert item.response.statusText is not None
-            item.response.statusText = None
-
-            del item.response.headers['server']
-            del item.response.headers['content-length']
-            del item.response.headers['date']
-        assert item == golden
+                    del item.response.headers['server']
+                    del item.response.headers['content-length']
+                    del item.response.headers['date']
+                assert item == golden
+                haveReqResp = True
+            elif isinstance (item, FrameNavigated):
+                # XXX: can’t check this, because of the redirect
+                #assert item.url == golden.url
+                haveNavigated = True
     finally:
+        assert haveReqResp
+        assert haveNavigated
         await runner.cleanup ()
 
 def test_page_idle ():
