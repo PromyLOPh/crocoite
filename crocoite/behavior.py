@@ -281,12 +281,25 @@ class Screenshot (Behavior):
 
     name = 'screenshot'
 
-    # see https://github.com/GoogleChrome/puppeteer/blob/230be28b067b521f0577206899db01f0ca7fc0d2/examples/screenshots-longpage.js
     # Hardcoded max texture size of 16,384 (crbug.com/770769)
     maxDim = 16*1024
 
     async def onfinish (self):
         tab = self.loader.tab
+
+        # this is required to make the browser render more than just the small
+        # actual viewport (i.e. entire page).  see
+        # https://github.com/GoogleChrome/puppeteer/blob/45873ea737b4ebe4fa7d6f46256b2ea19ce18aa7/lib/Page.js#L805
+        metrics = await tab.Page.getLayoutMetrics ()
+        contentSize = metrics['contentSize']
+
+        await tab.Emulation.setDeviceMetricsOverride (
+                width=0, height=0, deviceScaleFactor=0, mobile=False,
+                viewport={'x': 0,
+                'y': 0,
+                'width': contentSize['width'],
+                'height': contentSize['height'],
+                'scale': 1})
 
         tree = await tab.Page.getFrameTree ()
         try:
@@ -295,9 +308,6 @@ class Screenshot (Behavior):
             self.logger.error ('frame without url', tree=tree)
             url = None
 
-
-        metrics = await tab.Page.getLayoutMetrics ()
-        contentSize = metrics['contentSize']
         width = min (contentSize['width'], self.maxDim)
         # we’re ignoring horizontal scroll intentionally. Most horizontal
         # layouts use JavaScript scrolling and don’t extend the viewport.
@@ -307,6 +317,8 @@ class Screenshot (Behavior):
             ret = await tab.Page.captureScreenshot (format='png', clip=clip)
             data = b64decode (ret['data'])
             yield ScreenshotEvent (url, yoff, data)
+
+        await tab.Emulation.clearDeviceMetricsOverride ()
 
 class Click (JsOnload):
     """ Generic link clicking """
