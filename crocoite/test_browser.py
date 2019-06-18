@@ -32,9 +32,9 @@ import hypothesis.strategies as st
 from hypothesis.provisional import domains
 import pytest
 
-from .browser import RequestResponsePair, SiteLoader, VarChangeEvent, Request, \
+from .browser import RequestResponsePair, SiteLoader, Request, \
         UnicodeBody, ReferenceTimestamp, Base64Body, UnicodeBody, Request, \
-        Response, NavigateError
+        Response, NavigateError, PageIdle
 from .logger import Logger, Consumer
 from .devtools import Crashed, Process
 
@@ -78,29 +78,6 @@ async def test_invalidurl (loader):
             await loader.navigate (url)
     else:
         pytest.skip (f'host {host} resolved to {resolved}')
-
-@pytest.mark.asyncio
-async def test_varchangeevent ():
-    e = VarChangeEvent (True)
-    assert e.get () == True
-
-    # no change at all
-    w = asyncio.ensure_future (e.wait ())
-    finished, pending = await asyncio.wait ([w], timeout=0.1)
-    assert not finished and pending
-
-    # no change
-    e.set (True)
-    finished, pending = await asyncio.wait ([w], timeout=0.1)
-    assert not finished and pending
-
-    # changed
-    e.set (False)
-    await asyncio.sleep (0.1) # XXX: is there a yield() ?
-    assert w.done ()
-    ret = w.result ()
-    assert ret == False
-    assert e.get () == ret
 
 timestamp = st.one_of (
                 st.integers(min_value=0, max_value=2**32-1),
@@ -365,7 +342,10 @@ async def test_integration_item (loader, golden):
         await loader.navigate (golden.url)
 
         it = loader.__aiter__ ()
-        item = await it.__anext__ ()
+        while True:
+            item = await it.__anext__ ()
+            if isinstance (item, RequestResponsePair):
+                break
 
         # we do not know this in advance
         item.request.initiator = None
@@ -384,4 +364,10 @@ async def test_integration_item (loader, golden):
         assert item == golden
     finally:
         await runner.cleanup ()
+
+def test_page_idle ():
+    for v in (True, False):
+        idle = PageIdle (v)
+        assert bool (idle) == v
+
 

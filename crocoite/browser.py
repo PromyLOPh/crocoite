@@ -246,31 +246,17 @@ class RequestResponsePair:
         except TabException:
             self.response.body = None
 
-class VarChangeEvent:
-    """ Notify when variable is changed """
-
-    __slots__ = ('_value', 'event')
-
-    def __init__ (self, value):
-        self._value = value
-        self.event = asyncio.Event()
-
-    def set (self, value):
-        if value != self._value:
-            self._value = value
-            # unblock waiting threads
-            self.event.set ()
-            self.event.clear ()
-
-    def get (self):
-        return self._value
-
-    async def wait (self):
-        await self.event.wait ()
-        return self._value
-
 class NavigateError (IOError):
     pass
+
+class PageIdle:
+    """ Page idle event """
+
+    def __init__ (self, idle):
+        self.idle = idle
+
+    def __bool__ (self):
+        return self.idle
 
 class SiteLoader:
     """
@@ -280,7 +266,7 @@ class SiteLoader:
     """
 
     __slots__ = ('requests', 'browser', 'logger', 'tab', '_iterRunning',
-            'idle', '_framesLoading')
+            '_framesLoading')
     allowedSchemes = {'http', 'https'}
 
     def __init__ (self, browser, logger):
@@ -289,7 +275,6 @@ class SiteLoader:
         self.logger = logger.bind (context=type (self).__name__)
         self._iterRunning = []
 
-        self.idle = VarChangeEvent (True)
         self._framesLoading = set ()
 
     async def __aenter__ (self):
@@ -343,22 +328,24 @@ class SiteLoader:
         # we need to block (yield) for every item completed, but not
         # handled by the consumer (caller).
         running = self._iterRunning
-        running.append (asyncio.ensure_future (self.tab.get ()))
+        tabGetTask = asyncio.ensure_future (self.tab.get ())
+        running.append (tabGetTask)
         while True:
             done, pending = await asyncio.wait (running, return_when=asyncio.FIRST_COMPLETED)
             for t in done:
                 result = t.result ()
                 if result is None:
                     pass
-                elif isinstance (result, RequestResponsePair):
-                    yield result
-                else:
+                elif t == tabGetTask:
                     method, data = result
                     f = handler.get (method, None)
                     if f is not None:
                         task = asyncio.ensure_future (f (**data))
                         pending.add (task)
-                    pending.add (asyncio.ensure_future (self.tab.get ()))
+                    tabGetTask = asyncio.ensure_future (self.tab.get ())
+                    pending.add (tabGetTask)
+                else:
+                    yield result
 
             running = pending
             self._iterRunning = running
@@ -492,7 +479,7 @@ class SiteLoader:
                 uuid='bbeb39c0-3304-4221-918e-f26bd443c566', args=kwargs)
 
         self._framesLoading.add (kwargs['frameId'])
-        self.idle.set (False)
+        return PageIdle (False)
 
     async def _frameStoppedLoading (self, **kwargs):
         self.logger.debug ('frameStoppedLoading',
@@ -500,5 +487,5 @@ class SiteLoader:
 
         self._framesLoading.remove (kwargs['frameId'])
         if not self._framesLoading:
-            self.idle.set (True)
+            return PageIdle (True)
 

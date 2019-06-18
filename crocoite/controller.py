@@ -29,7 +29,7 @@ from operator import attrgetter
 from yarl import URL
 
 from . import behavior as cbehavior
-from .browser import SiteLoader, RequestResponsePair
+from .browser import SiteLoader, RequestResponsePair, PageIdle
 from .util import getFormattedViewportMetrics, getSoftwareInfo
 from .behavior import ExtractLinksEvent
 
@@ -95,6 +95,40 @@ class ControllerStart:
     def __init__ (self, payload):
         self.payload = payload
 
+class IdleStateTracker (EventHandler):
+    """ Track SiteLoader’s idle state by listening to PageIdle events """
+
+    __slots__ = ('_idle', '_loop', '_idleSince')
+
+    def __init__ (self, loop):
+        self._idle = True
+        self._loop = loop
+
+        self._idleSince = self._loop.time ()
+
+    def push (self, item):
+        if isinstance (item, PageIdle):
+            self._idle = bool (item)
+            if self._idle:
+                self._idleSince = self._loop.time ()
+
+    async def wait (self, timeout):
+        """ Wait until page has been idle for at least timeout seconds. If the
+        page has been idle before calling this function it may return
+        immediately. """
+
+        assert timeout > 0
+        while True:
+            if self._idle:
+                now = self._loop.time ()
+                sleep = timeout-(now-self._idleSince)
+                if sleep <= 0:
+                    break
+            else:
+                # not idle, check again after timeout expires
+                sleep = timeout
+            await asyncio.sleep (sleep)
+
 class SinglePageController:
     """
     Archive a single page url.
@@ -128,10 +162,12 @@ class SinglePageController:
             async for item in l:
                 self.processItem (item)
 
+        idle = IdleStateTracker (asyncio.get_event_loop ())
+        self.handler.append (idle)
+
         async with self.service as browser, SiteLoader (browser, logger=logger) as l:
             handle = asyncio.ensure_future (processQueue ())
-
-            start = time.time ()
+            timeoutProc = asyncio.ensure_future (asyncio.sleep (self.settings.timeout))
 
             # not all behavior scripts are allowed for every URL, filter them
             enabledBehavior = list (filter (lambda x: self.url in x,
@@ -162,30 +198,17 @@ class SinglePageController:
                 async for item in b.onload ():
                     self.processItem (item)
 
-            # wait until the browser has a) been idle for at least
-            # settings.idleTimeout or b) settings.timeout is exceeded
-            timeoutProc = asyncio.ensure_future (asyncio.sleep (self.settings.timeout))
-            # the browser might have changed to idle from .navigate until here
-            # due to awaits inbetween. Thus, idleProc may never be triggered.
-            idleTimeout = None if not l.idle.get() else self.settings.idleTimeout
+            idleProc = asyncio.ensure_future (idle.wait (self.settings.idleTimeout))
             while True:
-                idleProc = asyncio.ensure_future (l.idle.wait ())
                 try:
                     finished, pending = await asyncio.wait([idleProc, timeoutProc, handle],
-                            return_when=asyncio.FIRST_COMPLETED, timeout=idleTimeout)
+                            return_when=asyncio.FIRST_COMPLETED)
                 except asyncio.CancelledError:
                     idleProc.cancel ()
                     timeoutProc.cancel ()
                     break
 
-                if not finished:
-                    # idle timeout
-                    logger.debug ('idle timeout',
-                            uuid='90702590-94c4-44ef-9b37-02a16de444c3')
-                    idleProc.cancel ()
-                    timeoutProc.cancel ()
-                    break
-                elif handle in finished:
+                if handle in finished:
                     # something went wrong while processing the data
                     logger.error ('fetch failed',
                         uuid='43a0686a-a3a9-4214-9acd-43f6976f8ff3')
@@ -201,16 +224,12 @@ class SinglePageController:
                     timeoutProc.result ()
                     break
                 elif idleProc in finished:
-                    # idle state change
-                    isIdle = idleProc.result ()
-                    logger.debug ('idle state',
-                            uuid='e3eaff79-7b56-4d17-aa42-d32fa1ec268b',
-                            idle=isIdle)
-                    if isIdle:
-                        # browser is idle, start the clock
-                        idleTimeout = self.settings.idleTimeout
-                    else:
-                        idleTimeout = None
+                    # idle timeout
+                    logger.debug ('idle timeout',
+                            uuid='90702590-94c4-44ef-9b37-02a16de444c3')
+                    idleProc.result ()
+                    timeoutProc.cancel ()
+                    break
 
             for b in enabledBehavior:
                 async for item in b.onstop ():
@@ -223,10 +242,12 @@ class SinglePageController:
                 async for item in b.onfinish ():
                     self.processItem (item)
 
-            # wait until loads from behavior scripts are done
-            await asyncio.sleep (1)
-            if not l.idle.get ():
-                while not await l.idle.wait (): pass
+            # wait until loads from behavior scripts are done and browser is
+            # idle for at least 1 second
+            try:
+                await asyncio.wait_for (idle.wait (1), timeout=1)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                pass
 
             if handle.done ():
                 handle.result ()

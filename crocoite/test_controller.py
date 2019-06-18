@@ -26,7 +26,9 @@ from aiohttp import web
 import pytest
 
 from .logger import Logger
-from .controller import ControllerSettings, SinglePageController, SetEntry
+from .controller import ControllerSettings, SinglePageController, SetEntry, \
+        IdleStateTracker
+from .browser import PageIdle
 from .devtools import Process
 from .test_browser import loader
 
@@ -63,10 +65,13 @@ window.setInterval (function () { fetch('/').then (function (e) { console.log (e
         # hard-coded asyncio.sleep calls in there right now.
         # XXX fix this
         before = loop.time ()
-        await asyncio.wait_for (controller.run (), settings.timeout*2)
+        await asyncio.wait_for (controller.run (), timeout=settings.timeout*2)
         after = loop.time ()
-        assert after-before >= settings.timeout
+        assert after-before >= settings.timeout, (settings.timeout*2, after-before)
     finally:
+        # give the browser some time to close before interrupting the
+        # connection by destroying the HTTP server
+        await asyncio.sleep (1)
         await runner.cleanup ()
 
 @pytest.mark.asyncio
@@ -116,4 +121,33 @@ def test_set_entry ():
     c = SetEntry (2, a=2, b=3)
     assert a != c
     assert hash (a) != hash (c)
+
+@pytest.mark.asyncio
+async def test_idle_state_tracker ():
+    # default is idle
+    loop = asyncio.get_event_loop ()
+    idle = IdleStateTracker (loop)
+    assert idle._idle
+
+    # idle change
+    idle.push (PageIdle (False))
+    assert not idle._idle
+
+    # nothing happens for other objects
+    idle.push ({})
+    assert not idle._idle
+
+    # no state change -> wait does not return
+    with pytest.raises (asyncio.TimeoutError):
+        await asyncio.wait_for (idle.wait (0.1), timeout=1)
+
+    # wait at least timeout
+    delta = 0.2
+    timeout = 1
+    idle.push (PageIdle (True))
+    assert idle._idle
+    start = loop.time ()
+    await idle.wait (timeout)
+    end = loop.time ()
+    assert (timeout-delta) < (end-start) < (timeout+delta)
 
