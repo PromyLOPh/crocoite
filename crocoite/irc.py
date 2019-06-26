@@ -444,6 +444,8 @@ class Chromebot (ArgparseBot):
         #archiveparser.add_argument('--max-body-size', default=None, type=int, dest='maxBodySize', help='Max body size', metavar='BYTES', choices=[1*1024*1024, 10*1024*1024, 100*1024*1024])
         archiveparser.add_argument('--concurrency', '-j', default=1, type=int, help='Parallel workers for this job', choices=range (1, 5))
         archiveparser.add_argument('--recursive', '-r', help='Enable recursion', choices=['0', '1', 'prefix'], default='0')
+        archiveparser.add_argument('--insecure', '-k',
+                help='Disable certificate checking', action='store_true')
         archiveparser.add_argument('url', help='Website URL', type=isValidUrl, metavar='URL')
         archiveparser.set_defaults (func=self.handleArchive,
                 minPriv=NickMode.voice if self.needVoice else None)
@@ -488,20 +490,27 @@ class Chromebot (ArgparseBot):
                 'recursive': args.recursive,
                 'concurrency': args.concurrency,
                 }
+        if args.insecure:
+            showargs['insecure'] = args.insecure
         warcinfo = {'chromebot': {
                 'jobid': j.id,
                 'user': user.name,
                 'queued': j.started,
                 'url': args.url,
+                'recursive': args.recursive,
+                'concurrency': args.concurrency,
                 }}
-        warcinfo['chromebot'].update (showargs)
+        grabCmd = ['crocoite-grab']
+        grabCmd.extend (['--warcinfo',
+                '!' + json.dumps (warcinfo, cls=StrJsonEncoder)])
+        if args.insecure:
+            grabCmd.append ('--insecure')
+        grabCmd.extend (['{url}', '{dest}'])
         # prefix warcinfo with !, so it won’t get expanded
         cmdline = ['crocoite-recursive', args.url, '--tempdir', self.tempdir,
                 '--prefix', j.id + '-{host}-{date}-', '--policy',
                 args.recursive, '--concurrency', str (args.concurrency),
-                self.destdir, '--', 'crocoite-grab', '--warcinfo',
-                '!' + json.dumps (warcinfo, cls=StrJsonEncoder), '{url}',
-                '{dest}']
+                self.destdir, '--'] + grabCmd
 
         strargs = ', '.join (map (lambda x: '{}={}'.format (*x), showargs.items ()))
         reply (f'{args.url} has been queued as {j.id} with {strargs}')

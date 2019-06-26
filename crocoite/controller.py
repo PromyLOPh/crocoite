@@ -35,14 +35,19 @@ from .util import getFormattedViewportMetrics, getSoftwareInfo
 from .behavior import ExtractLinksEvent
 
 class ControllerSettings:
-    __slots__ = ('idleTimeout', 'timeout')
+    __slots__ = ('idleTimeout', 'timeout', 'insecure')
 
-    def __init__ (self, idleTimeout=2, timeout=10):
+    def __init__ (self, idleTimeout=2, timeout=10, insecure=False):
         self.idleTimeout = idleTimeout
         self.timeout = timeout
+        self.insecure = insecure
 
     def toDict (self):
-        return dict (idleTimeout=self.idleTimeout, timeout=self.timeout)
+        return dict (
+                idleTimeout=self.idleTimeout,
+                timeout=self.timeout,
+                insecure=self.insecure,
+                )
 
 defaultSettings = ControllerSettings ()
 
@@ -204,17 +209,21 @@ class SinglePageController:
             handle = asyncio.ensure_future (processQueue ())
             timeoutProc = asyncio.ensure_future (asyncio.sleep (self.settings.timeout))
 
+            # configure browser
+            tab = l.tab
+            await tab.Security.setIgnoreCertificateErrors (ignore=self.settings.insecure)
+
             # not all behavior scripts are allowed for every URL, filter them
             self._enabledBehavior = list (filter (lambda x: self.url in x,
                     map (lambda x: x (l, logger), self.behavior)))
 
-            version = await l.tab.Browser.getVersion ()
+            version = await tab.Browser.getVersion ()
             payload = {
                     'software': getSoftwareInfo (),
                     'browser': {
                         'product': version['product'],
                         'useragent': version['userAgent'],
-                        'viewport': await getFormattedViewportMetrics (l.tab),
+                        'viewport': await getFormattedViewportMetrics (tab),
                         },
                     'tool': 'crocoite-single', # not the name of the cli utility
                     'parameters': {
@@ -222,6 +231,7 @@ class SinglePageController:
                         'idleTimeout': self.settings.idleTimeout,
                         'timeout': self.settings.timeout,
                         'behavior': list (map (attrgetter('name'), self._enabledBehavior)),
+                        'insecure': self.settings.insecure,
                         },
                     }
             if self.warcinfo:
@@ -264,7 +274,7 @@ class SinglePageController:
                     break
 
             await behavior.stop ()
-            await l.tab.Page.stopLoading ()
+            await tab.Page.stopLoading ()
             await asyncio.sleep (1)
             await behavior.finish ()
 

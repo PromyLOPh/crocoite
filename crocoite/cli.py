@@ -74,6 +74,9 @@ def single ():
             metavar='NAME', nargs='*')
     parser.add_argument('--warcinfo', help='Add extra information to warcinfo record',
             metavar='JSON', type=json.loads)
+    parser.add_argument('-k', '--insecure',
+            action='store_true',
+            help='Disable certificate validation')
     parser.add_argument('url', help='Website URL', type=URL, metavar='URL')
     parser.add_argument('output', help='WARC filename', metavar='FILE')
 
@@ -85,7 +88,11 @@ def single ():
     service = Process ()
     if args.browser:
         service = Passthrough (args.browser)
-    settings = ControllerSettings (idleTimeout=args.idleTimeout, timeout=args.timeout)
+    settings = ControllerSettings (
+            idleTimeout=args.idleTimeout,
+            timeout=args.timeout,
+            insecure=args.insecure,
+            )
     with open (args.output, 'wb') as fd, WarcHandler (fd, logger) as warcHandler:
         logger.connect (WarcHandlerConsumer (warcHandler))
         handler = [StatsHandler (), LogHandler (logger), warcHandler]
