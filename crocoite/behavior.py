@@ -279,40 +279,66 @@ class Screenshot (Behavior):
     Create screenshot from tab and write it to WARC
     """
 
+    __slots__ = ('script')
+
     name = 'screenshot'
 
     # Hardcoded max texture size of 16,384 (crbug.com/770769)
     maxDim = 16*1024
 
+    def __init__ (self, loader, logger):
+        super ().__init__ (loader, logger)
+        self.script = Script ('screenshot.js')
+
     async def onfinish (self):
         tab = self.loader.tab
+
+        # for top-level/full-screen elements with position: fixed we need to
+        # figure out their actual size (i.e. scrollHeight) and use that when
+        # overriding the viewport size.
+        # we could do this without javascript, but that would require several
+        # round-trips to Chrome or pulling down the entire DOM+computed styles
+        tab = self.loader.tab
+        yield self.script
+        result = await tab.Runtime.evaluate (expression=str (self.script), returnByValue=True)
+        assert result['result']['type'] == 'object', result
+        result = result['result']['value']
 
         # this is required to make the browser render more than just the small
         # actual viewport (i.e. entire page).  see
         # https://github.com/GoogleChrome/puppeteer/blob/45873ea737b4ebe4fa7d6f46256b2ea19ce18aa7/lib/Page.js#L805
         metrics = await tab.Page.getLayoutMetrics ()
         contentSize = metrics['contentSize']
+        contentHeight = max (result + [contentSize['height']])
 
-        await tab.Emulation.setDeviceMetricsOverride (
-                width=0, height=0, deviceScaleFactor=0, mobile=False,
-                viewport={'x': 0,
-                'y': 0,
-                'width': contentSize['width'],
-                'height': contentSize['height'],
-                'scale': 1})
+        override = {
+                'width': 0,
+                'height': 0,
+                'deviceScaleFactor': 0,
+                'mobile': False,
+                'viewport': {'x': 0,
+                    'y': 0,
+                    'width': contentSize['width'],
+                    'height': contentHeight,
+                    'scale': 1}
+                }
+        self.logger.debug ('screenshot override',
+                uuid='e0affa18-cbb1-4d97-9d13-9a88f704b1b2', override=override)
+        await tab.Emulation.setDeviceMetricsOverride (**override)
 
         tree = await tab.Page.getFrameTree ()
         try:
             url = URL (tree['frameTree']['frame']['url']).with_fragment (None)
         except KeyError:
-            self.logger.error ('frame without url', tree=tree)
+            self.logger.error ('frame without url',
+                    uuid='edc2743d-b93e-4ba1-964e-db232f2f96ff', tree=tree)
             url = None
 
         width = min (contentSize['width'], self.maxDim)
         # we’re ignoring horizontal scroll intentionally. Most horizontal
         # layouts use JavaScript scrolling and don’t extend the viewport.
-        for yoff in range (0, contentSize['height'], self.maxDim):
-            height = min (contentSize['height'] - yoff, self.maxDim)
+        for yoff in range (0, contentHeight, self.maxDim):
+            height = min (contentHeight - yoff, self.maxDim)
             clip = {'x': 0, 'y': yoff, 'width': width, 'height': height, 'scale': 1}
             ret = await tab.Page.captureScreenshot (format='png', clip=clip)
             data = b64decode (ret['data'])
