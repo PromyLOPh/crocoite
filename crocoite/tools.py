@@ -122,6 +122,8 @@ def extractScreenshot ():
             'WARC, write JSON info to stdout.')
     parser.add_argument('-f', '--force', action='store_true',
             help='Overwrite existing files')
+    parser.add_argument('-1', '--one', action='store_true',
+            help='Only extract the first screenshot into a file named prefix')
     parser.add_argument('input', type=argparse.FileType ('rb'),
             help='Input WARC')
     parser.add_argument('prefix', help='Output file prefix')
@@ -139,7 +141,7 @@ def extractScreenshot ():
 
             url = URL (headers.get_header ('WARC-Target-URI'))
             yoff = int (headers.get_header ('X-Crocoite-Screenshot-Y-Offset'))
-            outpath = f'{args.prefix}{i:05d}.png'
+            outpath = f'{args.prefix}{i:05d}.png' if not args.one else args.prefix
             if args.force or not os.path.exists (outpath):
                 json.dump ({'file': outpath, 'url': url, 'yoff': yoff},
                         sys.stdout, cls=StrJsonEncoder)
@@ -149,6 +151,9 @@ def extractScreenshot ():
                 i += 1
             else:
                 print (f'not overwriting {outpath}', file=sys.stderr)
+
+            if args.one:
+                break
 
 class Errata:
     __slots__ = ('uuid', 'description', 'affects')
