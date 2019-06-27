@@ -34,8 +34,12 @@ from pkg_resources import parse_version, parse_requirements
 from .util import packageUrl, getSoftwareInfo, StrJsonEncoder
 
 def mergeWarc (files, output):
+    # stats
     unique = 0
     revisit = 0
+    uniqueLength = 0
+    revisitLength = 0
+
     payloadMap = {}
     writer = WARCWriter (output, gzip=True)
 
@@ -65,11 +69,13 @@ def mergeWarc (files, output):
                     headers = record.rec_headers
                     rid = headers.get_header('WARC-Record-ID')
                     csum = headers.get_header('WARC-Payload-Digest')
+                    length = int (headers.get_header ('Content-Length'))
                     dup = payloadMap.get (csum, None)
                     if dup is None:
                         payloadMap[csum] = {'uri': headers.get_header('WARC-Target-URI'),
                                 'id': rid, 'date': headers.get_header('WARC-Date')}
                         unique += 1
+                        uniqueLength += length
                     else:
                         logging.debug (f'Record {rid} is duplicate of {dup["id"]}')
                         # Payload may be identical, but HTTP headers are
@@ -81,10 +87,20 @@ def mergeWarc (files, output):
                         record.rec_headers.add_header ('WARC-Truncated', 'length')
                         record.rec_headers.add_header ('WARC-Refers-To', dup['id'])
                         revisit += 1
+                        revisitLength += length
                 else:
                     unique += 1
                 writer.write_record (record)
-    logging.info (f'Wrote {unique} unique records, {revisit} revisits')
+    json.dump (dict (
+            unique=dict (records=unique, bytes=uniqueLength),
+            revisit=dict (records=revisit, bytes=revisitLength),
+            ratio=dict (
+                    records=unique/(unique+revisit),
+                    bytes=uniqueLength/(uniqueLength+revisitLength)
+                    ),
+            ),
+            sys.stdout,
+            cls=StrJsonEncoder)
 
 def mergeWarcCli():
     parser = argparse.ArgumentParser(description='Merge WARCs, reads filenames from stdin.')
@@ -103,7 +119,7 @@ def extractScreenshot ():
     """
 
     parser = argparse.ArgumentParser(description='Extract screenshots from '
-            'WARC, write TSV-formatted info to stdout.')
+            'WARC, write JSON info to stdout.')
     parser.add_argument('-f', '--force', action='store_true',
             help='Overwrite existing files')
     parser.add_argument('input', type=argparse.FileType ('rb'),
