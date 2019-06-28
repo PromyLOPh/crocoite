@@ -101,6 +101,7 @@ def mergeWarc (files, output):
             ),
             sys.stdout,
             cls=StrJsonEncoder)
+    sys.stdout.write ('\n')
 
 def mergeWarcCli():
     parser = argparse.ArgumentParser(description='Merge WARCs, reads filenames from stdin.')
