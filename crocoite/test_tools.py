@@ -28,7 +28,6 @@ from warcio.statusandheaders import StatusAndHeaders
 from pkg_resources import parse_version
 
 from .tools import mergeWarc, Errata, FixableErrata
-from .util import packageUrl
 
 @pytest.fixture
 def writer():
@@ -49,7 +48,9 @@ def recordsEqual(golden, underTest):
 
 def makeGolden(writer, records):
     # additional warcinfo is written. Content does not matter.
-    record = writer.create_warc_record (packageUrl ('warcinfo'), 'warcinfo',
+    record = writer.create_warc_record (
+            '',
+            'warcinfo',
             payload=b'',
             warc_headers_dict={'Content-Type': 'text/plain; encoding=utf-8'})
     records.insert (0, record)

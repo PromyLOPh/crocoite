@@ -30,11 +30,17 @@ from http.server import BaseHTTPRequestHandler
 from warcio.timeutils import datetime_to_iso_date
 from warcio.warcwriter import WARCWriter
 from warcio.statusandheaders import StatusAndHeaders
+from yarl import URL
 
-from .util import packageUrl, StrJsonEncoder
+from .util import StrJsonEncoder
 from .controller import EventHandler, ControllerStart
 from .behavior import Script, DomSnapshotEvent, ScreenshotEvent
-from .browser import RequestResponsePair, UnicodeBody, Base64Body
+from .browser import RequestResponsePair, UnicodeBody
+
+# the official mimetype for json, according to https://tools.ietf.org/html/rfc8259
+jsonMime = 'application/json'
+# mime for javascript, according to https://tools.ietf.org/html/rfc4329#section-7.2
+jsMime = 'application/javascript'
 
 class WarcHandler (EventHandler):
     __slots__ = ('logger', 'writer', 'documentRecords', 'log',
@@ -67,6 +73,7 @@ class WarcHandler (EventHandler):
 
         Adds default WARC headers.
         """
+        assert url is None or isinstance (url, URL)
 
         d = {}
         if self.warcinfoRecordId:
@@ -74,8 +81,11 @@ class WarcHandler (EventHandler):
         d.update (warc_headers_dict)
         warc_headers_dict = d
 
-        record = self.writer.create_warc_record (str (url), kind, payload=payload,
-                warc_headers_dict=warc_headers_dict, http_headers=http_headers)
+        record = self.writer.create_warc_record (str (url) if url else '',
+                kind,
+                payload=payload,
+                warc_headers_dict=warc_headers_dict,
+                http_headers=http_headers)
         self.writer.write_record (record)
 
         return record
@@ -90,7 +100,7 @@ class WarcHandler (EventHandler):
         httpHeaders = StatusAndHeaders(f'{req.method} {path} HTTP/1.1',
                 req.headers, protocol='HTTP/1.1', is_http_request=True)
         warcHeaders = {
-                'X-Chrome-Initiator': json.dumps (req.initiator),
+                # required to correlate request with log entries
                 'X-Chrome-Request-ID': item.id,
                 'WARC-Date': datetime_to_iso_date (req.timestamp),
                 }
@@ -102,7 +112,6 @@ class WarcHandler (EventHandler):
                     uuid='ee9adc58-e723-4595-9feb-312a67ead6a0')
             warcHeaders['WARC-Truncated'] = 'unspecified'
         else:
-            warcHeaders['X-Chrome-Base64Body'] = str (type (body) is Base64Body)
             body = BytesIO (body)
         record = self.writeRecord (url, 'request',
                 payload=body, http_headers=httpHeaders,
@@ -117,14 +126,13 @@ class WarcHandler (EventHandler):
         resp = item.response
         warcHeaders = {
                 'WARC-Concurrent-To': concurrentTo,
+                # required to correlate request with log entries
                 'X-Chrome-Request-ID': item.id,
                 'WARC-Date': datetime_to_iso_date (resp.timestamp),
                 }
         # conditional WARC headers
         if item.remoteIpAddress:
             warcHeaders['WARC-IP-Address'] = item.remoteIpAddress
-        if item.protocol:
-            warcHeaders['X-Chrome-Protocol'] = item.protocol
 
         # HTTP headers
         statusText = resp.statusText or \
@@ -153,7 +161,6 @@ class WarcHandler (EventHandler):
             warcHeaders['WARC-Truncated'] = 'unspecified'
         else:
             httpHeaders.replace_header ('Content-Length', str (len (body)))
-            warcHeaders['X-Chrome-Base64Body'] = str (type (body) is Base64Body)
             body = BytesIO (body)
 
         record = self.writeRecord (item.url, 'response',
@@ -166,11 +173,15 @@ class WarcHandler (EventHandler):
     def _writeScript (self, item):
         writer = self.writer
         encoding = 'utf-8'
-        path = item.path or '-'
-        self.writeRecord (packageUrl (f'script/{path}'), 'metadata',
+        # XXX: yes, we’re leaking information about the user here, but this is
+        # the one and only source URL of the scripts.
+        uri = URL(f'file://{item.abspath}') if item.path else None
+        self.writeRecord (uri, 'resource',
                 payload=BytesIO (str (item).encode (encoding)),
-                warc_headers_dict={'Content-Type':
-                f'application/javascript; charset={encoding}'})
+                warc_headers_dict={
+                    'Content-Type': f'{jsMime}; charset={encoding}',
+                    'X-Crocoite-Type': 'script',
+                    })
 
     def _writeItem (self, item):
         assert item.request
@@ -190,7 +201,8 @@ class WarcHandler (EventHandler):
     def _writeDomSnapshot (self, item):
         writer = self.writer
 
-        warcHeaders = {'X-DOM-Snapshot': str (True),
+        warcHeaders = {
+                'X-Crocoite-Type': 'dom-snapshot',
                 'X-Chrome-Viewport': item.viewport,
                 'Content-Type': 'text/html; charset=utf-8',
                 }
@@ -203,18 +215,21 @@ class WarcHandler (EventHandler):
 
     def _writeScreenshot (self, item):
         writer = self.writer
-        warcHeaders = {'Content-Type': 'image/png',
-                'X-Crocoite-Screenshot-Y-Offset': str (item.yoff)}
+        warcHeaders = {
+                'Content-Type': 'image/png',
+                'X-Crocoite-Screenshot-Y-Offset': str (item.yoff),
+                'X-Crocoite-Type': 'screenshot',
+                }
         self._addRefersTo (warcHeaders, item.url)
         self.writeRecord (item.url, 'conversion',
                 payload=BytesIO (item.data), warc_headers_dict=warcHeaders)
 
-    def _writeControllerStart (self, item):
-        payload = BytesIO (json.dumps (item.payload, indent=2, cls=StrJsonEncoder).encode ('utf-8'))
+    def _writeControllerStart (self, item, encoding='utf-8'):
+        payload = BytesIO (json.dumps (item.payload, indent=2, cls=StrJsonEncoder).encode (encoding))
 
         writer = self.writer
-        warcinfo = self.writeRecord (packageUrl ('warcinfo'), 'warcinfo',
-                warc_headers_dict={'Content-Type': 'text/plain; encoding=utf-8'},
+        warcinfo = self.writeRecord (None, 'warcinfo',
+                warc_headers_dict={'Content-Type': f'{jsonMime}; encoding={encoding}'},
                 payload=payload)
         self.warcinfoRecordId = warcinfo.rec_headers['WARC-Record-ID']
 
@@ -222,9 +237,12 @@ class WarcHandler (EventHandler):
         if self.log.tell () > 0:
             writer = self.writer
             self.log.seek (0)
-            # XXX: we should use the type continuation here
-            self.writeRecord (packageUrl ('log'), 'resource', payload=self.log,
-                    warc_headers_dict={'Content-Type': f'text/plain; encoding={self.logEncoding}'})
+            warcHeaders = {
+                    'Content-Type': f'application/json; encoding={self.logEncoding}',
+                    'X-Crocoite-Type': 'log',
+                    }
+            self.writeRecord (None, 'metadata', payload=self.log,
+                    warc_headers_dict=warcHeaders)
             self.log = BytesIO ()
 
     def _writeLog (self, item):

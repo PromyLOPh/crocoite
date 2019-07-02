@@ -52,17 +52,23 @@ class Script:
     """ A JavaScript resource """
 
     __slots__ = ('path', 'data')
+    datadir = 'data'
 
     def __init__ (self, path=None, encoding='utf-8'):
         self.path = path
         if path:
-            self.data = pkg_resources.resource_string (__name__, os.path.join ('data', path)).decode (encoding)
+            self.data = pkg_resources.resource_string (__name__, os.path.join (self.datadir, path)).decode (encoding)
 
     def __repr__ (self):
         return f'<Script {self.path}>'
 
     def __str__ (self):
         return self.data
+
+    @property
+    def abspath (self):
+        return pkg_resources.resource_filename (__name__,
+                os.path.join (self.datadir, self.path))
 
     @classmethod
     def fromStr (cls, data, path=None):
@@ -140,7 +146,7 @@ class JsOnload (Behavior):
         constructor = result['objectId']
 
         if self.options:
-            yield Script.fromStr (json.dumps (self.options, indent=2), f'{self.script.path}/options')
+            yield Script.fromStr (json.dumps (self.options, indent=2), f'{self.script.path}#options')
         result = await tab.Runtime.callFunctionOn (
                 functionDeclaration='function(options){return new this(options);}',
                 objectId=constructor,

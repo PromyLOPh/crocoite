@@ -57,9 +57,10 @@ def test_log ():
         fd.seek (0)
         for it in ArchiveIterator (fd):
             headers = it.rec_headers
-            assert headers['warc-type'] == 'resource'
-            assert headers['warc-target-uri'].endswith (':log')
-            assert headers['content-type'] == f'text/plain; encoding={handler.logEncoding}'
+            assert headers['warc-type'] == 'metadata'
+            assert 'warc-target-uri' not in headers
+            assert headers['x-crocoite-type'] == 'log'
+            assert headers['content-type'] == f'application/json; encoding={handler.logEncoding}'
 
             while True:
                 l = it.raw_stream.readline ()
@@ -108,7 +109,8 @@ async def test_push (golden):
 
                 headers = rec.rec_headers
                 assert headers['warc-type'] == 'warcinfo'
-                assert headers['warc-target-uri'].endswith (':warcinfo')
+                assert 'warc-target-uri' not in headers
+                assert 'x-crocoite-type' not in headers
 
                 data = json.load (rec.raw_stream)
                 assert data == g.payload
@@ -119,11 +121,14 @@ async def test_push (golden):
                 rec = next (it)
 
                 headers = rec.rec_headers
-                assert headers['warc-type'] == 'metadata'
+                assert headers['warc-type'] == 'resource'
+                assert headers['content-type'] == 'application/javascript; charset=utf-8'
+                assert headers['x-crocoite-type'] == 'script'
                 checkWarcinfoId (headers)
-                path = g.path or '-'
-                goldenpath = f':script/{urllib.parse.quote (path)}'
-                assert headers['warc-target-uri'].endswith (goldenpath), (g.path, path, goldenpath)
+                if g.path:
+                    assert URL (headers['warc-target-uri']) == URL ('file://' + g.abspath)
+                else:
+                    assert 'warc-target-uri' not in headers
 
                 data = rec.raw_stream.read ().decode ('utf-8')
                 assert data == g.data
@@ -133,6 +138,7 @@ async def test_push (golden):
 
                 headers = rec.rec_headers
                 assert headers['warc-type'] == 'conversion'
+                assert headers['x-crocoite-type'] == 'screenshot'
                 checkWarcinfoId (headers)
                 assert URL (headers['warc-target-uri']) == g.url, (headers['warc-target-uri'], g.url)
                 assert headers['warc-refers-to'] is None
@@ -144,10 +150,10 @@ async def test_push (golden):
 
                 headers = rec.rec_headers
                 assert headers['warc-type'] == 'conversion'
+                assert headers['x-crocoite-type'] == 'dom-snapshot'
                 checkWarcinfoId (headers)
                 assert URL (headers['warc-target-uri']) == g.url
                 assert headers['warc-refers-to'] is None
-                assert headers['X-DOM-Snapshot'] == 'True'
 
                 assert rec.raw_stream.read () == g.document
             elif isinstance (g, RequestResponsePair):
@@ -156,6 +162,7 @@ async def test_push (golden):
                 # request
                 headers = rec.rec_headers
                 assert headers['warc-type'] == 'request'
+                assert 'x-crocoite-type' not in headers
                 checkWarcinfoId (headers)
                 assert URL (headers['warc-target-uri']) == g.url
                 assert headers['x-chrome-request-id'] == g.id
@@ -164,7 +171,6 @@ async def test_push (golden):
                 if g.request.hasPostData:
                     if g.request.body is not None:
                         assert rec.raw_stream.read () == g.request.body
-                        assert str (headers['x-chrome-base64body'] or False) == str (isinstance (g.request.body, Base64Body)), (headers['x-chrome-base64body'], g.request.body)
                     else:
                         # body fetch failed
                         assert headers['warc-truncated'] == 'unspecified'
@@ -181,6 +187,7 @@ async def test_push (golden):
                     checkWarcinfoId (headers)
                     assert URL (headers['warc-target-uri']) == g.url
                     assert headers['x-chrome-request-id'] == g.id
+                    assert 'x-crocoite-type' not in headers
 
                     # these are checked separately
                     filteredHeaders = CIMultiDict (httpheaders.headers)
@@ -197,7 +204,6 @@ async def test_push (golden):
 
                     if g.response.body is not None:
                         assert rec.raw_stream.read () == g.response.body
-                        assert str (headers['x-chrome-base64body'] or False) == str (isinstance (g.response.body, Base64Body))
                         assert httpheaders['content-length'] == str (len (g.response.body))
                         # body is never truncated if it exists
                         assert headers['warc-truncated'] is None

@@ -26,6 +26,8 @@ import random, sys, platform, os, json, urllib
 from datetime import datetime
 import hashlib, pkg_resources
 
+from yarl import URL
+
 class StrJsonEncoder (json.JSONEncoder):
     """ JSON encoder that turns unknown classes into a string and thus never
     fails """
@@ -38,12 +40,6 @@ class StrJsonEncoder (json.JSONEncoder):
             return json.JSONEncoder.default(self, obj)
         except TypeError:
             return str (obj)
-
-def packageUrl (path):
-    """
-    Create URL for package data stored into WARC
-    """
-    return 'urn:' + __package__ + ':' + urllib.parse.quote (path)
 
 async def getFormattedViewportMetrics (tab):
     layoutMetrics = await tab.Page.getLayoutMetrics ()

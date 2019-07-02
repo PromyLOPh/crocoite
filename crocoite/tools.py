@@ -31,7 +31,7 @@ from yarl import URL
 
 from pkg_resources import parse_version, parse_requirements
 
-from .util import packageUrl, getSoftwareInfo, StrJsonEncoder
+from .util import getSoftwareInfo, StrJsonEncoder
 
 def mergeWarc (files, output):
     # stats
@@ -57,7 +57,7 @@ def mergeWarc (files, output):
             'parameters': {'inputs': files},
             }
     payload = BytesIO (json.dumps (warcinfo, indent=2).encode ('utf-8'))
-    record = writer.create_warc_record (packageUrl ('warcinfo'), 'warcinfo',
+    record = writer.create_warc_record ('', 'warcinfo',
             payload=payload,
             warc_headers_dict={'Content-Type': 'text/plain; encoding=utf-8'})
     writer.write_record (record)
