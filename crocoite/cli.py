@@ -124,8 +124,8 @@ def single ():
         finally:
             r = handler[0].stats
             logger.info ('stats', context='cli', uuid='24d92d16-770e-4088-b769-4020e127a7ff', **r)
+            logger.info ('exit', context='cli', uuid='9b1bd603-f7cd-4745-895a-5b894a5166f2', status=ret)
 
-    logger.info ('exit', context='cli', uuid='9b1bd603-f7cd-4745-895a-5b894a5166f2', status=ret)
     return ret
 
 def parsePolicy (recursive, url):
