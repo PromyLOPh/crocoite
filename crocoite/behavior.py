@@ -259,9 +259,12 @@ class DomSnapshot (Behavior):
             if url in haveUrls:
                 # ignore duplicate URLs. they are usually caused by
                 # javascript-injected iframes (advertising) with no(?) src
-                self.logger.warning (f'have DOM snapshot for URL {url}, ignoring')
+                self.logger.warning ('dom snapshot duplicate',
+                        uuid='d44de989-98d4-456e-82e7-9d4c49acab5e')
             elif url.scheme in ('http', 'https'):
-                self.logger.debug (f'saving DOM snapshot for url {url}, base {doc["baseURL"]}')
+                self.logger.debug ('dom snapshot',
+                        uuid='ece7ff05-ccd9-44b5-b6a8-be25a24b96f4',
+                        base=doc["baseURL"])
                 haveUrls.add (url)
                 walker = ChromeTreeWalker (doc)
                 # remove script, to make the page static and noscript, because at the
