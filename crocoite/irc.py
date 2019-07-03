@@ -366,7 +366,7 @@ class ArgparseBot (bottom.Client):
 
     async def onMessage (self, nick, target, message, **kwargs):
         """ Message received """
-        if target in self.channels and message.startswith (self.nick):
+        if target in self.channels and message.startswith (self.nick + ':'):
             user = self.users[target].get (nick, User (nick))
             reply = ReplyContext (client=self, target=target, user=user)
 
