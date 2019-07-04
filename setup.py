@@ -2,13 +2,15 @@ from setuptools import setup
 
 setup(
     name='crocoite',
-    version='0.1.0',
+    version='1.0.0',
     author='Lars-Dominik Braun',
     author_email='lars+crocoite@6xq.net',
+    url='https://6xq.net/crocoite/',
     packages=['crocoite'],
     license='LICENSE.txt',
     description='Save website to WARC using Google Chrome.',
     long_description=open('README.rst').read(),
+    long_description_content_type='text/x-rst',
     install_requires=[
         'warcio',
         'html5lib>=0.999999999',
@@ -44,4 +46,12 @@ setup(
     setup_requires=['pytest-runner'],
     tests_require=["pytest", 'pytest-asyncio', 'pytest-cov', 'hypothesis'],
     python_requires='>=3.6',
+    classifiers=[
+        'Development Status :: 5 - Production/Stable',
+        'License :: OSI Approved :: MIT License',
+        'Operating System :: POSIX',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Topic :: Internet :: WWW/HTTP',
+    ],
 )
