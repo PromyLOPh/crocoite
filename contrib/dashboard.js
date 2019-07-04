@@ -72,7 +72,7 @@ ws.onmessage = function (event) {
 		} else if (rmsg.uuid == '5b8498e4-868d-413c-a67e-004516b8452c') {
 			/* recursion status */
 			Object.assign (j.stats, rmsg);
-		} else if (rmsg.uuid == '1680f384-744c-4b8a-815b-7346e632e8db') {
+		} else if (rmsg.uuid == 'd1288fbe-8bae-42c8-af8c-f2fa8b41794f') {
 			/* fetch */
 			j.addUrl (rmsg.url);
 		}

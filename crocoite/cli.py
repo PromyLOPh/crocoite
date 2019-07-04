@@ -42,6 +42,13 @@ from .logger import Logger, JsonPrintConsumer, DatetimeConsumer, \
         WarcHandlerConsumer, Level
 from .devtools import Crashed
 
+def absurl (s):
+    """ argparse: Absolute URL """
+    u = URL (s)
+    if u.is_absolute ():
+        return u
+    raise argparse.ArgumentTypeError ('Must be absolute')
+
 class SingleExitStatus(IntEnum):
     """ Exit status for single-shot command line """
     Ok = 0
@@ -50,21 +57,8 @@ class SingleExitStatus(IntEnum):
     Navigate = 3
 
 def single ():
-    """
-    One-shot command line interface and pywb_ playback:
-
-    .. code:: bash
-
-        pip install pywb
-        crocoite-grab http://example.com/ example.com.warc.gz
-        rm -rf collections && wb-manager init test && wb-manager add test example.com.warc.gz
-        wayback &
-        $BROWSER http://localhost:8080
-
-    .. _pywb: https://github.com/ikreymer/pywb
-    """
-    parser = argparse.ArgumentParser(description='Save website to WARC using Google Chrome.')
-    parser.add_argument('--browser', help='DevTools URL', metavar='URL')
+    parser = argparse.ArgumentParser(description='crocoite helper tools to fetch individual pages.')
+    parser.add_argument('--browser', help='DevTools URL', type=absurl, metavar='URL')
     parser.add_argument('--timeout', default=1*60*60, type=int, help='Maximum time for archival', metavar='SEC')
     parser.add_argument('--idle-timeout', default=30, type=int, help='Maximum idle seconds (i.e. no requests)', dest='idleTimeout', metavar='SEC')
     parser.add_argument('--behavior', help='Enable behavior script',
@@ -77,7 +71,7 @@ def single ():
     parser.add_argument('-k', '--insecure',
             action='store_true',
             help='Disable certificate validation')
-    parser.add_argument('url', help='Website URL', type=URL, metavar='URL')
+    parser.add_argument('url', help='Website URL', type=absurl, metavar='URL')
     parser.add_argument('output', help='WARC filename', metavar='FILE')
 
     args = parser.parse_args ()
@@ -135,50 +129,40 @@ def parsePolicy (recursive, url):
         return DepthLimit (int (recursive))
     elif recursive == 'prefix':
         return PrefixLimit (url)
-    raise ValueError ('Unsupported')
+    raise argparse.ArgumentTypeError ('Unsupported recursion mode')
 
 def recursive ():
-    """
-    crocoite is built with the Unix philosophy (“do one thing and do it well”) in
-    mind. Thus ``crocoite-grab`` can only save a single page. If you want recursion
-    use ``crocoite-recursive``, which follows hyperlinks according to ``--policy``.
-    It can either recurse a maximum number of levels or grab all pages with the
-    same prefix as the start URL:
-
-    .. code:: bash
-
-       crocoite-recursive --policy prefix http://www.example.com/dir/ output
-
-    will save all pages in ``/dir/`` and below to individual files in the output
-    directory ``output``. You can customize the command used to grab individual
-    pages by appending it after ``output``. This way distributed grabs (ssh to a
-    different machine and execute the job there, queue the command with Slurm, …)
-    are possible.
-    """
-
     logger = Logger (consumer=[DatetimeConsumer (), JsonPrintConsumer ()])
 
-    parser = argparse.ArgumentParser(description='Recursively run crocoite-grab.')
-    parser.add_argument('--policy', help='Recursion policy', metavar='POLICY')
-    parser.add_argument('--tempdir', help='Directory for temporary files', metavar='DIR')
-    parser.add_argument('--prefix', help='Output filename prefix, supports templates {host} and {date}', metavar='FILENAME', default='{host}-{date}-')
-    parser.add_argument('--concurrency', '-j', help='Run at most N jobs', metavar='N', default=1, type=int)
-    parser.add_argument('url', help='Seed URL', type=URL, metavar='URL')
-    parser.add_argument('output', help='Output directory', metavar='DIR')
-    parser.add_argument('command', help='Fetch command, supports templates {url} and {dest}', metavar='CMD', nargs='*', default=['crocoite-grab', '{url}', '{dest}'])
+    parser = argparse.ArgumentParser(description='Save website to WARC using Google Chrome.')
+    parser.add_argument('-j', '--concurrency',
+            help='Run at most N jobs concurrently', metavar='N', default=1,
+            type=int)
+    parser.add_argument('-r', '--recursion', help='Recursion policy',
+            metavar='POLICY')
+    parser.add_argument('--tempdir', help='Directory for temporary files',
+            metavar='DIR')
+    parser.add_argument('url', help='Seed URL', type=absurl, metavar='URL')
+    parser.add_argument('output',
+            help='Output file, supports templates {host}, {date} and {seqnum}',
+            metavar='FILE')
+    parser.add_argument('command',
+            help='Fetch command, supports templates {url} and {dest}',
+            metavar='CMD', nargs='*',
+            default=['crocoite-single', '{url}', '{dest}'])
 
     args = parser.parse_args ()
     try:
-        policy = parsePolicy (args.policy, args.url)
-    except ValueError:
-        parser.error ('Invalid argument for --policy')
+        policy = parsePolicy (args.recursion, args.url)
+    except argparse.ArgumentTypeError as e:
+        parser.error (str (e))
 
-    os.makedirs (args.output, exist_ok=True)
-
-    controller = RecursiveController (url=args.url, output=args.output,
-            command=args.command, logger=logger, policy=policy,
-            tempdir=args.tempdir, prefix=args.prefix,
-            concurrency=args.concurrency)
+    try:
+        controller = RecursiveController (url=args.url, output=args.output,
+                command=args.command, logger=logger, policy=policy,
+                tempdir=args.tempdir, concurrency=args.concurrency)
+    except ValueError as e:
+        parser.error (str (e))
 
     run = asyncio.ensure_future (controller.run ())
     loop = asyncio.get_event_loop()
@@ -191,19 +175,6 @@ def recursive ():
     return 0
 
 def irc ():
-    """
-    A simple IRC bot (“chromebot”) is provided with the command ``crocoite-irc``.
-    It reads its configuration from a config file like the example provided in
-    ``contrib/chromebot.json`` and supports the following commands:
-
-    a <url> -j <concurrency> -r <policy>
-        Archive <url> with <concurrency> processes according to recursion <policy>
-    s <uuid>
-        Get job status for <uuid>
-    r <uuid>
-        Revoke or abort running job with <uuid>
-    """
-
     import json, re
     from .irc import Chromebot
 

@@ -25,10 +25,14 @@ setup(
     },
     entry_points={
     'console_scripts': [
-            'crocoite-grab = crocoite.cli:single',
-            'crocoite-recursive = crocoite.cli:recursive',
+            # the main executable
+            'crocoite = crocoite.cli:recursive',
+            # backend helper
+            'crocoite-single = crocoite.cli:single',
+            # irc bot and dashboard
             'crocoite-irc = crocoite.cli:irc',
             'crocoite-irc-dashboard = crocoite.cli:dashboard',
+            # misc tools
             'crocoite-merge-warc = crocoite.tools:mergeWarcCli',
             'crocoite-extract-screenshot = crocoite.tools:extractScreenshot',
             'crocoite-errata = crocoite.tools:errata',

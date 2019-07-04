@@ -22,7 +22,7 @@
 IRC bot “chromebot”
 """
 
-import asyncio, argparse, json, tempfile, time, random
+import asyncio, argparse, json, tempfile, time, random, os
 from datetime import datetime
 from urllib.parse import urlsplit
 from enum import IntEnum, unique
@@ -500,17 +500,21 @@ class Chromebot (ArgparseBot):
                 'recursive': args.recursive,
                 'concurrency': args.concurrency,
                 }}
-        grabCmd = ['crocoite-grab']
+        grabCmd = ['crocoite-single']
         grabCmd.extend (['--warcinfo',
                 '!' + json.dumps (warcinfo, cls=StrJsonEncoder)])
         if args.insecure:
             grabCmd.append ('--insecure')
         grabCmd.extend (['{url}', '{dest}'])
         # prefix warcinfo with !, so it won’t get expanded
-        cmdline = ['crocoite-recursive', args.url, '--tempdir', self.tempdir,
-                '--prefix', j.id + '-{host}-{date}-', '--policy',
-                args.recursive, '--concurrency', str (args.concurrency),
-                self.destdir, '--'] + grabCmd
+        cmdline = ['crocoite',
+                '--tempdir', self.tempdir,
+                '--recursion', args.recursive,
+                '--concurrency', str (args.concurrency),
+                args.url,
+                os.path.join (self.destdir,
+                        j.id + '-{host}-{date}-{seqnum}.warc.gz'),
+                '--'] + grabCmd
 
         strargs = ', '.join (map (lambda x: '{}={}'.format (*x), showargs.items ()))
         reply (f'{args.url} has been queued as {j.id} with {strargs}')
@@ -640,9 +644,8 @@ class Dashboard:
         elif msgid == '5c0f9a11-dcd8-4182-a60f-54f4d3ab3687':
             nesteddata = data['data']
             nestedmsgid = nesteddata['uuid']
-            if nestedmsgid == '1680f384-744c-4b8a-815b-7346e632e8db':
+            if nestedmsgid == 'd1288fbe-8bae-42c8-af8c-f2fa8b41794f':
                 del nesteddata['command']
-                del nesteddata['destfile']
             
         buf = json.dumps (data)
         for c in self.clients:
