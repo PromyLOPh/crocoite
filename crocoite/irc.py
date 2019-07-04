@@ -631,7 +631,11 @@ class Dashboard:
         if not buf:
             return
 
-        data = json.loads (buf)
+        try:
+            data = json.loads (buf)
+        except json.decoder.JSONDecodeError:
+            # ignore invalid
+            return
         msgid = data['uuid']
 
         if msgid in self.ignoreMsgid:
