@@ -269,7 +269,7 @@ class Process:
 
     async def __aenter__ (self):
         assert self.p is None
-        self.userDataDir = mkdtemp ()
+        self.userDataDir = mkdtemp (prefix=__package__ + '-chrome-userdata-')
         # see https://github.com/GoogleChrome/chrome-launcher/blob/master/docs/chrome-flags-for-tools.md
         args = [self.binary,
                 '--window-size={},{}'.format (*self.windowSize),
