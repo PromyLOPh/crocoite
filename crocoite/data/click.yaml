@@ -46,13 +46,6 @@ selector:
     throttle: 500
     urls: ["https://old.reddit.com/r/subredditcancer/comments/b2b80f/we_are_moderators_of_rwatchpeopledie_amaa_just/"]
 ---
-match: ^www\.instagram\.com$
-selector:
-  - description: load more comments
-    selector: article div ul li button[type=button]
-    multi: True
-    urls: ["https://www.instagram.com/p/BuqGbgJHCCP/"]
----
 match: ^www\.youtube\.com$
 selector:
   - description: expand comment thread
@@ -75,20 +68,12 @@ selector:
   - description: load more replies
     selector: div > a[scale="0"][color=blue][size="1"]
 ---
-# gab uses multiple domains without any preference for either (i.e. redirect),
-# so we need to support them all
-match: ^(www\.)?gab\.(ai|com)$
+match: ^(www\.)?gab\.com$
 selector:
-  - description: more replies
-    selector: post-detail post-comment .post-comment__replies__count a
-    urls: ["https://gab.ai/gab/posts/40014689", "https://www.gab.com/gab/posts/40014689"]
-  - description: more comments
-    selector: post-detail .post-comment-list__loading a
-    urls: ["https://gab.ai/gab/posts/41804462", "https://www.gab.com/gab/posts/41804462"]
   - description: more posts
-    selector: post-list a.post-list__load-more
+    selector: div.item-list[role=feed] button.load-more
     multi: True
-    urls: ["https://gab.ai/gab", "https://www.gab.com/gab"]
+    urls: ["https://gab.com/gab"]
 ---
 match: ^(www\.)?github\.com$
 selector:
