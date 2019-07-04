@@ -1,17 +1,25 @@
 Usage
 -----
 
-One-shot command line interface and pywb_ playback:
+Quick start using pywb_, expects Google Chrome to be installed already:
 
 .. code:: bash
 
-    pip install pywb
+    pip install crocoite pywb
     crocoite http://example.com/ example.com.warc.gz
-    rm -rf collections && wb-manager init test && wb-manager add test example.com.warc.gz
+    wb-manager init test && wb-manager add test example.com.warc.gz
     wayback &
     $BROWSER http://localhost:8080
 
 .. _pywb: https://github.com/ikreymer/pywb
+
+It is recommended to install at least Micrsoft’s Corefonts_ as well as DejaVu_,
+Liberation_ or a similar font family covering a wide range of character sets.
+Otherwise page screenshots may be unusable due to missing glyphs.
+
+.. _Corefonts: http://corefonts.sourceforge.net/
+.. _DejaVu: https://dejavu-fonts.github.io/
+.. _Liberation: https://pagure.io/liberation-fonts
 
 IRC bot
 ^^^^^^^
