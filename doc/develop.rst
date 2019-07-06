@@ -1,19 +1,17 @@
 Development
 -----------
 
-Generally crocoite provides reasonable defaults for Google Chrome via its
-`devtools module`_. When debugging this software it might be necessary to open
-a non-headless instance of the browser by running
+Generally crocoite provides reasonable defaults for Google Chrome via
+:py:mod:`crocoite.devtools`. When debugging this software it might be necessary
+to open a non-headless instance of the browser by running
 
 .. code:: bash
 
    google-chrome-stable --remote-debugging-port=9222 --auto-open-devtools-for-tabs
 
-and then passing the option ``--browser=http://localhost:9222`` to
-``crocoite-grab``. This allows human intervention through the browser’s builtin
-console.
-
-.. _devtools module: crocoite/devtools.py
+and then passing the option :option:`--browser=http://localhost:9222` to
+:program:`crocoite-single`. This allows human intervention through the
+browser’s builtin console.
 
 Release guide
 ^^^^^^^^^^^^^
@@ -34,7 +32,7 @@ a new version to pypi_::
     gpg --detach-sign --armor dist/*.tar.gz
     twine upload dist/*
 
-Then update the documentation using ``sphing-doc`` and upload it as well.
+Then update the documentation using :program:`sphing-doc` and upload it as well.
 
 .. _semantic versioning: https://semver.org/spec/v2.0.0.html
 .. _pypi: https://pypi.org
