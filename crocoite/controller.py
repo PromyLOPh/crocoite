@@ -22,7 +22,7 @@
 Controller classes, handling actions required for archival
 """
 
-import time, tempfile, asyncio, json, os, shutil
+import time, tempfile, asyncio, json, os, shutil, signal
 from itertools import islice
 from datetime import datetime
 from operator import attrgetter
