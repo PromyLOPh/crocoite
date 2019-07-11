@@ -67,16 +67,29 @@ class Browser:
             self.tab = await Tab.create (**resp)
             return self.tab
 
-    async def __aexit__ (self, *args):
+    async def __aexit__ (self, excType, excValue, traceback):
         assert self.tab is not None
         assert self.session is not None
+
         await self.tab.close ()
-        async with self.session.get (self.url.with_path (f'/json/close/{self.tab.id}')) as r:
-            resp = await r.text ()
-            assert resp == 'Target is closing'
+
+        try:
+            async with self.session.get (self.url.with_path (f'/json/close/{self.tab.id}')) as r:
+                resp = await r.text ()
+                assert resp == 'Target is closing'
+        except aiohttp.client_exceptions.ClientConnectorError:
+            # oh boy, the whole browser crashed instead
+            if excType is Crashed:
+                # exception is reraised by `return False`
+                pass
+            else:
+                # this one is more important
+                raise
+
         self.tab = None
         await self.session.close ()
         self.session = None
+
         return False
 
 class TabFunction:
@@ -321,8 +334,12 @@ class Process:
         return URL.build(scheme='http', host='localhost', port=port)
 
     async def __aexit__ (self, *exc):
-        self.p.terminate ()
-        await self.p.wait ()
+        try:
+            self.p.terminate ()
+            await self.p.wait ()
+        except ProcessLookupError:
+            # ok, fine, dead already
+            pass
 
         # Try to delete the temporary directory multiple times. It looks like
         # Chrome will change files in there even after it exited (i.e. .wait()
