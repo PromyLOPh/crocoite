@@ -26,6 +26,8 @@ import argparse, sys, signal, asyncio, os, json
 from traceback import TracebackException
 from enum import IntEnum
 from yarl import URL
+from http.cookies import SimpleCookie
+import pkg_resources
 try:
     import manhole
     manhole.install (patch_fork=False, oneshot_on='USR1')
@@ -49,6 +51,29 @@ def absurl (s):
         return u
     raise argparse.ArgumentTypeError ('Must be absolute')
 
+def cookie (s):
+    """ argparse: Cookie """
+    c = SimpleCookie (s)
+    # for some reason the constructor does not raise an exception if the cookie
+    # supplied is invalid. It’ll simply be empty.
+    if len (c) != 1:
+        raise argparse.ArgumentTypeError ('Invalid cookie')
+    # we want a single Morsel
+    return next (iter (c.values ()))
+
+def cookiejar (f):
+    """ argparse: Cookies from file """
+    cookies = []
+    try:
+        with open (f, 'r') as fd:
+            for l in fd:
+                l = l.lstrip ()
+                if l and not l.startswith ('#'):
+                    cookies.append (cookie (l))
+    except FileNotFoundError:
+        raise argparse.ArgumentTypeError (f'Cookie jar "{f}" does not exist')
+    return cookies
+
 class SingleExitStatus(IntEnum):
     """ Exit status for single-shot command line """
     Ok = 0
@@ -68,9 +93,16 @@ def single ():
             metavar='NAME', nargs='*')
     parser.add_argument('--warcinfo', help='Add extra information to warcinfo record',
             metavar='JSON', type=json.loads)
+    # re-using curl’s short/long switch names whenever possible
     parser.add_argument('-k', '--insecure',
             action='store_true',
             help='Disable certificate validation')
+    parser.add_argument ('-b', '--cookie', type=cookie, metavar='SET-COOKIE',
+            action='append', default=[], help='Cookies in Set-Cookie format.')
+    parser.add_argument ('-c', '--cookie-jar', dest='cookieJar',
+            type=cookiejar, metavar='FILE',
+            default=pkg_resources.resource_filename (__name__, 'data/cookies.txt'),
+            help='Cookie jar file, read-only.')
     parser.add_argument('url', help='Website URL', type=absurl, metavar='URL')
     parser.add_argument('output', help='WARC filename', metavar='FILE')
 
@@ -86,6 +118,7 @@ def single ():
             idleTimeout=args.idleTimeout,
             timeout=args.timeout,
             insecure=args.insecure,
+            cookies=args.cookieJar + args.cookie,
             )
     with open (args.output, 'wb') as fd, WarcHandler (fd, logger) as warcHandler:
         logger.connect (WarcHandlerConsumer (warcHandler))

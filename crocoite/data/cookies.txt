@@ -1,0 +1,9 @@
+# Default cookies for crocoite. This file does *not* use Netscape’s cookie
+# file format. Lines are expected to be in Set-Cookie format.
+# And this line is a comment.
+
+# Reddit:
+# skip over 18 prompt
+over18=1; Domain=www.reddit.com
+# skip quarantined subreddit prompt
+_options={%22pref_quarantine_optin%22:true}; Domain=www.reddit.com

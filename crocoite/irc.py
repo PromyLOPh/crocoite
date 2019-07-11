@@ -22,7 +22,7 @@
 IRC bot “chromebot”
 """
 
-import asyncio, argparse, json, tempfile, time, random, os
+import asyncio, argparse, json, tempfile, time, random, os, shlex
 from datetime import datetime
 from urllib.parse import urlsplit
 from enum import IntEnum, unique
@@ -33,6 +33,7 @@ import bottom
 import websockets
 
 from .util import StrJsonEncoder
+from .cli import cookie
 
 ### helper functions ###
 def prettyTimeDelta (seconds):
@@ -366,12 +367,13 @@ class ArgparseBot (bottom.Client):
 
     async def onMessage (self, nick, target, message, **kwargs):
         """ Message received """
-        if target in self.channels and message.startswith (self.nick + ':'):
+        msgPrefix = self.nick + ':'
+        if target in self.channels and message.startswith (msgPrefix):
             user = self.users[target].get (nick, User (nick))
             reply = ReplyContext (client=self, target=target, user=user)
 
-            # channel message that starts with our nick
-            command = message.split (' ')[1:]
+            # shlex.split supports quoting arguments, which str.split() does not
+            command = shlex.split (message[len (msgPrefix):])
             try:
                 args = self.parser.parse_args (command)
             except Exception as e:
@@ -439,13 +441,14 @@ class Chromebot (ArgparseBot):
         subparsers = parser.add_subparsers(help='Sub-commands')
 
         archiveparser = subparsers.add_parser('a', help='Archive a site', add_help=False)
-        #archiveparser.add_argument('--timeout', default=1*60*60, type=int, help='Maximum time for archival', metavar='SEC', choices=[60, 1*60*60, 2*60*60])
-        #archiveparser.add_argument('--idle-timeout', default=10, type=int, help='Maximum idle seconds (i.e. no requests)', dest='idleTimeout', metavar='SEC', choices=[1, 10, 20, 30, 60])
-        #archiveparser.add_argument('--max-body-size', default=None, type=int, dest='maxBodySize', help='Max body size', metavar='BYTES', choices=[1*1024*1024, 10*1024*1024, 100*1024*1024])
         archiveparser.add_argument('--concurrency', '-j', default=1, type=int, help='Parallel workers for this job', choices=range (1, 5))
         archiveparser.add_argument('--recursive', '-r', help='Enable recursion', choices=['0', '1', 'prefix'], default='0')
         archiveparser.add_argument('--insecure', '-k',
                 help='Disable certificate checking', action='store_true')
+        # parsing the cookie here, so we can give an early feedback without
+        # waiting for the job to crash on invalid arguments.
+        archiveparser.add_argument('--cookie', '-b', type=cookie,
+                help='Add a cookie', action='append', default=[])
         archiveparser.add_argument('url', help='Website URL', type=isValidUrl, metavar='URL')
         archiveparser.set_defaults (func=self.handleArchive,
                 minPriv=NickMode.voice if self.needVoice else None)
@@ -501,12 +504,14 @@ class Chromebot (ArgparseBot):
                 'concurrency': args.concurrency,
                 }}
         grabCmd = ['crocoite-single']
+        # prefix warcinfo with !, so it won’t get expanded
         grabCmd.extend (['--warcinfo',
                 '!' + json.dumps (warcinfo, cls=StrJsonEncoder)])
+        for v in args.cookie:
+            grabCmd.extend (['--cookie', v.OutputString ()])
         if args.insecure:
             grabCmd.append ('--insecure')
         grabCmd.extend (['{url}', '{dest}'])
-        # prefix warcinfo with !, so it won’t get expanded
         cmdline = ['crocoite',
                 '--tempdir', self.tempdir,
                 '--recursion', args.recursive,

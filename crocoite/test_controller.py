@@ -151,3 +151,53 @@ async def test_idle_state_tracker ():
     end = loop.time ()
     assert (timeout-delta) < (end-start) < (timeout+delta)
 
+@pytest.fixture
+async def recordingServer ():
+    """ Simple HTTP server that records raw requests """
+    url = URL ('http://localhost:8080')
+    reqs = []
+    async def record (request):
+        reqs.append (request)
+        return web.Response(text='ok', content_type='text/plain')
+    app = web.Application()
+    app.add_routes([web.get(url.path, record)])
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite (runner, url.host, url.port)
+    await site.start()
+    yield url, reqs
+    await runner.cleanup ()
+
+from .test_devtools import tab, browser
+from http.cookies import Morsel, SimpleCookie
+
+@pytest.mark.asyncio
+async def test_set_cookies (tab, recordingServer):
+    """ Make sure cookies are set properly and only affect the domain they were
+    set for """
+
+    logger = Logger ()
+
+    url, reqs = recordingServer
+
+    cookies = []
+    c = Morsel ()
+    c.set ('foo', 'bar', '')
+    c['domain'] = 'localhost'
+    cookies.append (c)
+    c = Morsel ()
+    c.set ('buz', 'beef', '')
+    c['domain'] = 'nonexistent.example'
+
+    settings = ControllerSettings (idleTimeout=1, timeout=60, cookies=cookies)
+    controller = SinglePageController (url=url, logger=logger,
+            service=Process (), behavior=[], settings=settings)
+    await asyncio.wait_for (controller.run (), settings.timeout*2)
+    
+    assert len (reqs) == 1
+    req = reqs[0]
+    reqCookies = SimpleCookie (req.headers['cookie'])
+    assert len (reqCookies) == 1
+    c = next (iter (reqCookies.values ()))
+    assert c.key == cookies[0].key
+    assert c.value == cookies[0].value

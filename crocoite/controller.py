@@ -33,21 +33,19 @@ from . import behavior as cbehavior
 from .browser import SiteLoader, RequestResponsePair, PageIdle, FrameNavigated
 from .util import getFormattedViewportMetrics, getSoftwareInfo
 from .behavior import ExtractLinksEvent
+from .devtools import toCookieParam
 
 class ControllerSettings:
-    __slots__ = ('idleTimeout', 'timeout', 'insecure')
+    __slots__ = ('idleTimeout', 'timeout', 'insecure', 'cookies')
 
-    def __init__ (self, idleTimeout=2, timeout=10, insecure=False):
+    def __init__ (self, idleTimeout=2, timeout=10, insecure=False, cookies=None):
         self.idleTimeout = idleTimeout
         self.timeout = timeout
         self.insecure = insecure
+        self.cookies = cookies or []
 
-    def toDict (self):
-        return dict (
-                idleTimeout=self.idleTimeout,
-                timeout=self.timeout,
-                insecure=self.insecure,
-                )
+    def __repr__ (self):
+        return f'<ControllerSetting idleTimeout={self.idleTimeout!r}, timeout={self.timeout!r}, insecure={self.insecure!r}, cookies={self.cookies!r}>'
 
 defaultSettings = ControllerSettings ()
 
@@ -212,6 +210,7 @@ class SinglePageController:
             # configure browser
             tab = l.tab
             await tab.Security.setIgnoreCertificateErrors (ignore=self.settings.insecure)
+            await tab.Network.setCookies (cookies=list (map (toCookieParam, self.settings.cookies)))
 
             # not all behavior scripts are allowed for every URL, filter them
             self._enabledBehavior = list (filter (lambda x: self.url in x,
@@ -232,6 +231,7 @@ class SinglePageController:
                         'timeout': self.settings.timeout,
                         'behavior': list (map (attrgetter('name'), self._enabledBehavior)),
                         'insecure': self.settings.insecure,
+                        'cookies': list (map (lambda x: x.OutputString(), self.settings.cookies)),
                         },
                     }
             if self.warcinfo:

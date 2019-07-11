@@ -25,6 +25,8 @@ Communication with Google Chrome through its DevTools protocol.
 import json, asyncio, logging, os
 from tempfile import mkdtemp
 import shutil
+from http.cookies import Morsel
+
 import aiohttp, websockets
 from yarl import URL
 
@@ -365,4 +367,27 @@ class Passthrough:
 
     async def __aexit__ (self, *exc):
         return False
+
+def toCookieParam (m):
+    """
+    Convert Python’s http.cookies.Morsel to Chrome’s CookieParam, see
+    https://chromedevtools.github.io/devtools-protocol/1-3/Network#type-CookieParam
+    """
+
+    assert isinstance (m, Morsel)
+
+    out = {'name': m.key, 'value': m.value}
+
+    # unsupported by chrome
+    for k in ('max-age', 'comment', 'version'):
+        if m[k]:
+            raise ValueError (f'Unsupported cookie attribute {k} set, cannot convert')
+
+    for mname, cname in [('expires', None), ('path', None), ('domain', None), ('secure', None), ('httponly', 'httpOnly')]:
+        value = m[mname]
+        if value:
+            cname = cname or mname
+            out[cname] = value
+
+    return out
 
