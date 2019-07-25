@@ -147,16 +147,27 @@ class JsOnload (Behavior):
 
         if self.options:
             yield Script.fromStr (json.dumps (self.options, indent=2), f'{self.script.path}#options')
-        result = await tab.Runtime.callFunctionOn (
-                functionDeclaration='function(options){return new this(options);}',
-                objectId=constructor,
-                arguments=[{'value': self.options}])
-        self.logger.debug ('behavior onload start',
-                uuid='6c0605ae-93b3-46b3-b575-ba45790909a7', result=result)
-        result = result['result']
-        assert result['type'] == 'object', result
-        assert result.get ('subtype') != 'error', result
-        self.context = result['objectId']
+
+        try:
+            result = await tab.Runtime.callFunctionOn (
+                    functionDeclaration='function(options){return new this(options);}',
+                    objectId=constructor,
+                    arguments=[{'value': self.options}])
+            self.logger.debug ('behavior onload start',
+                    uuid='6c0605ae-93b3-46b3-b575-ba45790909a7', result=result)
+            result = result['result']
+            assert result['type'] == 'object', result
+            assert result.get ('subtype') != 'error', result
+            self.context = result['objectId']
+        except TabException as e:
+            if e.args[0] == -32000:
+                # the site probably reloaded. ignore this, since we’ll be
+                # re-injected into the new site by the controller.
+                self.logger.error ('jsonload onload failed',
+                        uuid='c151a863-78d1-41f4-a8e6-c022a6c5d252',
+                        exception=e.args)
+            else:
+                raise
 
     async def onstop (self):
         tab = self.loader.tab
