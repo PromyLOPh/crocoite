@@ -48,8 +48,8 @@ selector:
 ---
 match: ^www\.youtube\.com$
 selector:
-  - description: expand comment thread
-    selector: ytd-comment-thread-renderer div.more-button
+  - description: expand comment
+    selector: ytd-comment-thread-renderer span.more-button
     urls: ["https://www.youtube.com/watch?v=udtFqQuBFSc"]
   - description: show more comment thread replies
     selector: div.ytd-comment-replies-renderer > yt-next-continuation > paper-button
@@ -58,15 +58,9 @@ selector:
 ---
 match: ^www\.patreon\.com$
 selector:
-  - description: load more content
-    # this selector is so long, because there are no stable css classes
-    selector: div[display="block"] > div > div > div[display="flex"] > div > button[tabindex="0"][type="button"]
-    urls: ["https://www.patreon.com/nkjemisin"]
   - description: load more comments
-    selector: div[display=flex] div[display=block] a[color="dark"][role="button"][tabindex="0"]
+    selector: div[data-tag=post-card] button[data-tag=loadMoreCommentsCta]
     urls: ["https://www.patreon.com/posts/what-im-on-22124040"]
-  - description: load more replies
-    selector: div > a[scale="0"][color=blue][size="1"]
 ---
 match: ^(www\.)?gab\.com$
 selector:
