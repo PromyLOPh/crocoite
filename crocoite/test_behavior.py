@@ -31,7 +31,7 @@ from .logger import Logger
 from .devtools import Process
 from .behavior import Scroll, Behavior, ExtractLinks, ExtractLinksEvent, Crash, \
         Screenshot, ScreenshotEvent, DomSnapshot, DomSnapshotEvent, mapOrIgnore
-from .controller import SinglePageController, EventHandler
+from .controller import SinglePageController, EventHandler, ControllerSettings
 from .devtools import Crashed
 
 with pkg_resources.resource_stream (__name__, os.path.join ('data', 'click.yaml')) as fd:
@@ -82,8 +82,10 @@ async def test_click_selectors (url, selector):
     Make sure the CSS selector exists on an example url
     """
     logger = Logger ()
+    settings = ControllerSettings (idleTimeout=5, timeout=10)
     # Some selectors are loaded dynamically and require scrolling
     controller = SinglePageController (url=url, logger=logger,
+            settings=settings,
             service=Process (),
             behavior=[Scroll, partial(ClickTester, selector=selector)])
     await controller.run ()
