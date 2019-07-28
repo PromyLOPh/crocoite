@@ -154,7 +154,7 @@ A simple IRC bot (“chromebot”) is provided with the command :program:`crocoi
 It reads its configuration from a config file like the example provided in
 :file:`contrib/chromebot.json` and supports the following commands:
 
-a <url> -j <concurrency> -r <policy> -k
+a <url> -j <concurrency> -r <policy> -k -b <set-cookie>
     Archive <url> with <concurrency> processes according to recursion <policy>
 s <uuid>
     Get job status for <uuid>
