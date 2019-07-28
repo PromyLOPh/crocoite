@@ -42,6 +42,13 @@ jsonMime = 'application/json'
 # mime for javascript, according to https://tools.ietf.org/html/rfc4329#section-7.2
 jsMime = 'application/javascript'
 
+def makeContentType (mime, charset=None):
+    """ Create value of Content-Type WARC header with optional charset """
+    s = [mime]
+    if charset:
+        s.extend (['; charset=', charset])
+    return ''.join (s)
+
 class WarcHandler (EventHandler):
     __slots__ = ('logger', 'writer', 'documentRecords', 'log',
             'maxLogSize', 'logEncoding', 'warcinfoRecordId')
@@ -149,10 +156,9 @@ class WarcHandler (EventHandler):
         # chrome sends nothing but utf8 encoded text. Fortunately HTTP
         # headers take precedence over the document’s <meta>, thus we can
         # easily override those.
-        contentType = resp.mimeType
-        if contentType:
-            if isinstance (resp.body, UnicodeBody):
-                contentType += '; charset=utf-8'
+        if resp.mimeType:
+            charset = 'utf-8' if isinstance (resp.body, UnicodeBody) else None
+            contentType = makeContentType (resp.mimeType, charset=charset)
             httpHeaders.replace_header ('Content-Type', contentType)
 
         # response body
@@ -179,7 +185,7 @@ class WarcHandler (EventHandler):
         self.writeRecord (uri, 'resource',
                 payload=BytesIO (str (item).encode (encoding)),
                 warc_headers_dict={
-                    'Content-Type': f'{jsMime}; charset={encoding}',
+                    'Content-Type': makeContentType (jsMime, encoding),
                     'X-Crocoite-Type': 'script',
                     })
 
@@ -204,7 +210,7 @@ class WarcHandler (EventHandler):
         warcHeaders = {
                 'X-Crocoite-Type': 'dom-snapshot',
                 'X-Chrome-Viewport': item.viewport,
-                'Content-Type': 'text/html; charset=utf-8',
+                'Content-Type': makeContentType ('text/html', 'utf-8')
                 }
 
         self._addRefersTo (warcHeaders, item.url)
@@ -216,7 +222,7 @@ class WarcHandler (EventHandler):
     def _writeScreenshot (self, item):
         writer = self.writer
         warcHeaders = {
-                'Content-Type': 'image/png',
+                'Content-Type': makeContentType ('image/png'),
                 'X-Crocoite-Screenshot-Y-Offset': str (item.yoff),
                 'X-Crocoite-Type': 'screenshot',
                 }
@@ -229,7 +235,7 @@ class WarcHandler (EventHandler):
 
         writer = self.writer
         warcinfo = self.writeRecord (None, 'warcinfo',
-                warc_headers_dict={'Content-Type': f'{jsonMime}; encoding={encoding}'},
+                warc_headers_dict={'Content-Type': makeContentType (jsonMime, encoding)},
                 payload=payload)
         self.warcinfoRecordId = warcinfo.rec_headers['WARC-Record-ID']
 
@@ -238,7 +244,7 @@ class WarcHandler (EventHandler):
             writer = self.writer
             self.log.seek (0)
             warcHeaders = {
-                    'Content-Type': f'application/json; encoding={self.logEncoding}',
+                    'Content-Type': makeContentType (jsonMime, self.logEncoding),
                     'X-Crocoite-Type': 'log',
                     }
             self.writeRecord (None, 'metadata', payload=self.log,

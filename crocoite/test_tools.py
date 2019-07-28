@@ -52,7 +52,7 @@ def makeGolden(writer, records):
             '',
             'warcinfo',
             payload=b'',
-            warc_headers_dict={'Content-Type': 'text/plain; encoding=utf-8'})
+            warc_headers_dict={'Content-Type': 'application/json; charset=utf-8'})
     records.insert (0, record)
     return records
 

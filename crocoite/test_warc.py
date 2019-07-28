@@ -60,7 +60,7 @@ def test_log ():
             assert headers['warc-type'] == 'metadata'
             assert 'warc-target-uri' not in headers
             assert headers['x-crocoite-type'] == 'log'
-            assert headers['content-type'] == f'application/json; encoding={handler.logEncoding}'
+            assert headers['content-type'] == f'application/json; charset={handler.logEncoding}'
 
             while True:
                 l = it.raw_stream.readline ()
