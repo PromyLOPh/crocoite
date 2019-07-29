@@ -11,6 +11,7 @@ Chrome`_.
    :hidden:
 
    usage.rst
+   plugins.rst
    rationale.rst
    develop.rst
    related.rst
@@ -24,11 +25,12 @@ Google Chrome-powered
 WARC output
     Includes all network requests made by the browser
 Site interaction
-    Auto-expand on-click content, infinite-scrolling
+    :ref:`Auto-expand on-click content <click>`, infinite-scrolling
 DOM snapshot
     Contains the page’s state, renderable without JavaScript
 Image screenshot
     Entire page
 Machine-readable interface
     Easy integration into custom tools/scripts
+
 

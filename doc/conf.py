@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os, sys
 
 # -- Project information -----------------------------------------------------
 
@@ -8,9 +9,11 @@ author = 'crocoite contributors'
 
 # -- General configuration ---------------------------------------------------
 
+sys.path.append(os.path.abspath("./_ext"))
 extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.autodoc',
+    'clicklist',
 ]
 
 # Add any paths that contain templates here, relative to this directory.

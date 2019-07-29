@@ -2,107 +2,109 @@
 # Example URLs are random. Believe me.
 match: ^www\.facebook\.com$
 selector:
-  - description: Show comments and replies/nested comments on user pages
+  - description: Show comments and replies/nested comments on user pages.
     selector: form[action="/ajax/ufi/modify.php"] a[data-testid^="UFI2CommentsPagerRenderer/pager_depth_"]
     urls: ["https://www.facebook.com/tagesschau"]
-  - description: initially show comments below a single post/video, i.e. /user/post/123
+  - description: Initially show comments below a single post/video, i.e. /user/post/123.
     selector: form[action="/ajax/ufi/modify.php"] a[data-testid="UFI2CommentsCount/root"]
     urls: ["https://www.facebook.com/tagesschau/posts/10157061068659407"]
-  - description: close the “register now” nag screen. for better screen shots
+  - description: Close the “register now” nag screen. For screenshots.
     selector: a#expanding_cta_close_button[role=button]
     urls: ["https://www.facebook.com/tagesschau"]
 ---
 match: ^twitter\.com$
 selector:
-  - description: expand threads
+  - description: Expand threads.
     selector: a.ThreadedConversation-moreRepliesLink
     urls: ["https://twitter.com/realDonaldTrump/status/1068826073775964160"]
-  - description: show hidden profiles
+  - description: Show hidden profiles.
     selector: button.ProfileWarningTimeline-button
     urls: ["https://twitter.com/CookieCyboid"]
-  - description: show hidden/sensitive media. For screen-/snapshots.
+  - description: Show hidden/sensitive media. For screen-/snapshots.
     selector: button.Tombstone-action.js-display-this-media
     urls: ["https://twitter.com/CookieCyboid/status/1070807283305713665"]
 ---
 match: ^disqus\.com$
 selector:
-  - description: load more comments
+  - description: Load more comments.
     selector: a.load-more__button
     multi: True
 ---
 # new layout
 match: ^www\.reddit\.com$
 selector:
-  - description: show more comments, reddit’s javascript ignores events if too frequent
+  - description: Show more comments.
     selector: div[id^=moreComments-] > div > p
+    # reddit’s javascript ignores events if too frequent
     throttle: 500
     urls: ["https://www.reddit.com/r/subredditcancer/comments/b2b80f/we_are_moderators_of_rwatchpeopledie_amaa_just/"]
 ---
 # old layout
 match: ^(old|np)\.reddit\.com$
 selector:
-  - description: show more comments, reddit’s javascript ignores events if too frequent
+  - description: Show more comments.
     selector: span.morecomments a
+    # reddit’s javascript ignores events if too frequent
     throttle: 500
     urls: ["https://old.reddit.com/r/subredditcancer/comments/b2b80f/we_are_moderators_of_rwatchpeopledie_amaa_just/"]
 ---
 match: ^www\.youtube\.com$
 selector:
-  - description: expand comment
+  - description: Expand single comment.
     selector: ytd-comment-thread-renderer span.more-button
     urls: ["https://www.youtube.com/watch?v=udtFqQuBFSc"]
-  - description: show more comment thread replies
+  - description: Show more comment thread replies.
     selector: div.ytd-comment-replies-renderer > yt-next-continuation > paper-button
     urls: ["https://www.youtube.com/watch?v=Lov0T3eXI2k"]
     multi: True
 ---
 match: ^www\.patreon\.com$
 selector:
-  - description: load more comments
+  - description: Load more comments.
     selector: div[data-tag=post-card] button[data-tag=loadMoreCommentsCta]
     urls: ["https://www.patreon.com/posts/what-im-on-22124040"]
 ---
 match: ^(www\.)?gab\.com$
 selector:
-  - description: more posts
+  - description: Load more posts.
     selector: div.item-list[role=feed] button.load-more
     multi: True
     urls: ["https://gab.com/gab"]
 ---
 match: ^(www\.)?github\.com$
 selector:
-  - description: show hidden issue items
+  - description: Show hidden issue items.
     urls: ["https://github.com/dominictarr/event-stream/issues/116"]
     selector: div#discussion_bucket form.ajax-pagination-form button.ajax-pagination-btn
 ---
 match: ^www\.gamasutra\.com$
 selector:
-    - description: Load more comments
+    - description: Load more comments.
       urls: ["http://www.gamasutra.com/blogs/RaminShokrizade/20130626/194933/The_Top_F2P_Monetization_Tricks.php"]
       selector: div#dynamiccomments div.viewTopCmts a
 ---
 match: ^(www\.)?steamcommunity\.com$
 selector:
-    - description: Load more content
+    - description: Load more content.
       urls: ["https://steamcommunity.com/app/252950/reviews/?p=1&browsefilter=toprated&filterLanguage=all"]
       selector: "#GetMoreContentBtn a"
       multi: True
 ---
 match: ^imgur\.com$
 selector:
-    - description: Load more image of an album
+    - description: Load more images of an album.
       urls: ["https://imgur.com/a/JG1yc"]
       selector: div.js-post-truncated a.post-loadall
-    - description: Expand all comments (for snapshots)
+    - description: Expand all comments. For snapshots.
       urls: ["https://imgur.com/a/JG1yc"]
       selector: div.comments-info span.comments-expand
-    - description: Show bad replies (for snapshots)
+    - description: Show bad replies. for snapshots.
       urls: ["https://imgur.com/gallery/0l6Yo4r"]
       selector: div#comments div.bad-captions a.link
 ---
 match: ^(www\.)?vimeo\.com$
 selector:
-    - description: Load more videos on profile page
+    - description: Load more videos on profile page.
       urls: ["https://vimeo.com/dsam4a"]
       selector: div.profile_main div.profile-load-more__button--wrapper button.profile-load-more__button
 #    XXX: this works when using a non-headless browser, but does not otherwise
