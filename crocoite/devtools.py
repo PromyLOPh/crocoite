@@ -42,17 +42,16 @@ class Browser:
     Destroyed upon exit.
     """
 
-    __slots__ = ('session', 'url', 'tab', 'loop')
+    __slots__ = ('session', 'url', 'tab')
 
-    def __init__ (self, url, loop=None):
+    def __init__ (self, url):
         self.url = URL (url)
         self.session = None
         self.tab = None
-        self.loop = loop
 
     async def __aiter__ (self):
         """ List all tabs """
-        async with aiohttp.ClientSession (loop=self.loop) as session:
+        async with aiohttp.ClientSession () as session:
             async with session.get (self.url.with_path ('/json/list')) as r:
                 resp = await r.json ()
                 for tab in resp:
@@ -63,7 +62,7 @@ class Browser:
         """ Create tab """
         assert self.tab is None
         assert self.session is None
-        self.session = aiohttp.ClientSession (loop=self.loop)
+        self.session = aiohttp.ClientSession ()
         async with self.session.get (self.url.with_path ('/json/new')) as r:
             resp = await r.json ()
             self.tab = await Tab.create (**resp)
