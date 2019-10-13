@@ -443,6 +443,13 @@ class SiteLoader:
         if item is None:
             # we never recorded this request (blacklisted scheme, for example)
             return
+        if not item.response:
+            # chrome failed to send us a responseReceived event for this item,
+            # so we can’t record it (missing request/response headers)
+            self.logger.error ('response missing',
+                    uuid='fac3ab96-3f9b-4c5a-95c7-f83b675cdcb9', requestId=item.id)
+            return
+
         req = item.request
         if item.url.scheme in self.allowedSchemes:
             item.fromLoadingFinished (kwargs)
