@@ -27,7 +27,7 @@ function isClickable (o) {
 
 let ret = [];
 ['a[href]', 'area[href]'].forEach (function (s) {
-	let x = document.body.querySelectorAll(s);
+	let x = document.querySelectorAll(s);
 	for (let i=0; i < x.length; i++) {
 		if (isClickable (x[i])) {
 			ret.push (x[i].href);
