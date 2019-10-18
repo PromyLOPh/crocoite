@@ -51,7 +51,7 @@ selector:
 match: ^www\.youtube\.com$
 selector:
   - description: Expand single comment.
-    selector: ytd-comment-thread-renderer span.more-button
+    selector: ytd-comment-thread-renderer span[slot=more-button]
     urls: ["https://www.youtube.com/watch?v=udtFqQuBFSc"]
   - description: Show more comment thread replies.
     selector: div.ytd-comment-replies-renderer > yt-next-continuation > paper-button
@@ -106,7 +106,7 @@ match: ^(www\.)?vimeo\.com$
 selector:
     - description: Load more videos on profile page.
       urls: ["https://vimeo.com/dsam4a"]
-      selector: div.profile_main div.profile-load-more__button--wrapper button.profile-load-more__button
+      selector: div.profile_main div.profile-load-more__button--wrapper button
 #    XXX: this works when using a non-headless browser, but does not otherwise
 #    - description: Expand video comments
 #      urls: ["https://vimeo.com/22439234"]
