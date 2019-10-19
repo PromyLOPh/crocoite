@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='crocoite',
-    version='1.1.0.dev0',
+    version='1.1.1',
     author='Lars-Dominik Braun',
     author_email='lars+crocoite@6xq.net',
     url='https://6xq.net/crocoite/',
