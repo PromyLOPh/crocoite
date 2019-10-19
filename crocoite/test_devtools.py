@@ -114,24 +114,41 @@ async def test_load (tab, server):
     await tab.Network.enable ()
     await tab.Page.navigate (url='http://localhost:8080')
 
-    method, req = await tab.get ()
-    assert method == tab.Network.requestWillBeSent
+    haveRequest = False
+    haveResponse = False
+    haveData = False
+    haveFinished = False
+    haveBody = False
+    req = None
+    resp = None
+    while not haveBody:
+        method, data = await tab.get ()
 
-    method, resp = await tab.get ()
-    assert method == tab.Network.responseReceived
-    assert resp['requestId'] == req['requestId']
-
-    method, dataRecv = await tab.get ()
-    assert method == tab.Network.dataReceived
-    assert dataRecv['dataLength'] == len (docBody)
-    assert dataRecv['requestId'] == req['requestId']
-
-    method, finish = await tab.get ()
-    assert method == tab.Network.loadingFinished
-    assert finish['requestId'] == req['requestId']
-
-    body = await tab.Network.getResponseBody (requestId=req['requestId'])
-    assert body['body'] == docBody
+        # it can be either of those two in no specified order
+        if method in (tab.Network.requestWillBeSent, tab.Network.requestWillBeSentExtraInfo) and not haveResponse:
+            if req is None:
+                req = data
+            assert data['requestId'] == req['requestId']
+            haveRequest = True
+        elif method in (tab.Network.responseReceived, tab.Network.responseReceivedExtraInfo) and haveRequest:
+            if resp is None:
+                resp = data
+            assert data['requestId'] == resp['requestId']
+            haveResponse = True
+        elif haveRequest and haveResponse and method == tab.Network.dataReceived:
+            assert data['dataLength'] == len (docBody)
+            assert data['requestId'] == req['requestId']
+            haveData = True
+        elif haveData:
+            assert method == tab.Network.loadingFinished
+            assert data['requestId'] == req['requestId']
+            haveBody = True
+        elif haveFinished:
+            body = await tab.Network.getResponseBody (requestId=req['requestId'])
+            assert body['body'] == docBody
+            haveBody = True
+        else:
+            assert False, (method, req)
 
     await tab.Network.disable ()
     assert tab.pending == 0
