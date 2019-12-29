@@ -427,7 +427,8 @@ class RecursiveController:
             return
 
         dest = tempfile.NamedTemporaryFile (dir=self.tempdir,
-                prefix=__package__, suffix='.warc.gz', delete=False)
+                prefix=os.path.basename (self.output) + '-', suffix='.warc.gz',
+                delete=False)
         command = list (map (formatCommand, self.command))
         logger.info ('fetch', uuid='d1288fbe-8bae-42c8-af8c-f2fa8b41794f',
                 command=command)
