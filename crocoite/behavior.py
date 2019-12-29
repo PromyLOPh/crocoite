@@ -297,6 +297,8 @@ class ScreenshotEvent:
 class Screenshot (Behavior):
     """
     Create screenshot from tab and write it to WARC
+
+    Chrome will allocate an additional 512MB of RAM when using this plugin.
     """
 
     __slots__ = ('script')
