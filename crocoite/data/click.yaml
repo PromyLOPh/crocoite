@@ -99,7 +99,7 @@ selector:
       urls: ["https://imgur.com/a/JG1yc"]
       selector: div.comments-info span.comments-expand
     - description: Show bad replies. for snapshots.
-      urls: ["https://imgur.com/gallery/0l6Yo4r"]
+      urls: ["https://imgur.com/gallery/jRzMfRG"]
       selector: div#comments div.bad-captions a.link
 ---
 match: ^(www\.)?vimeo\.com$
