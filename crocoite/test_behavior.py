@@ -169,6 +169,7 @@ async def test_extract_links ():
         assert sorted (links) == sorted ([
                 url.with_path ('/relative'),
                 url.with_fragment ('anchor'),
+                URL ('http://neue_preise_f%C3%BCr_zahnimplantate_k%C3%B6nnten_sie_%C3%BCberraschen'),
                 URL ('http://example.com/absolute/'),
                 URL ('https://example.com/absolute/secure'),
                 url.with_path ('/hidden/visibility'), # XXX: shall we ignore these as well?
