@@ -202,8 +202,12 @@ def recursive ():
     stop = lambda signum: run.cancel ()
     loop.add_signal_handler (signal.SIGINT, stop, signal.SIGINT)
     loop.add_signal_handler (signal.SIGTERM, stop, signal.SIGTERM)
-    loop.run_until_complete(run)
-    loop.close()
+    try:
+        loop.run_until_complete(run)
+    except asyncio.CancelledError:
+        pass
+    finally:
+        loop.close()
 
     return 0
 
