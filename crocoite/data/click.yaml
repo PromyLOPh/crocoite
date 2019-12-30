@@ -23,6 +23,9 @@ selector:
   - description: Show hidden/sensitive media. For screen-/snapshots.
     selector: button.Tombstone-action.js-display-this-media
     urls: ["https://twitter.com/CookieCyboid/status/1070807283305713665"]
+  - description: Show more replies.
+    selector: button.ThreadedConversation-showMoreThreadsButton
+    urls: ["https://twitter.com/fuglydug/status/1172160128101076995"]
 ---
 match: ^disqus\.com$
 selector:
